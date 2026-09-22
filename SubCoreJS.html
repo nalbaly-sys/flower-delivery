@@ -1,0 +1,59 @@
+<script>
+// ==================================================
+// SubCoreJS (고유 관제 및 기사 연동 로직)
+// ==================================================
+console.log("SubCoreJS 고유 모듈 로드 완료");
+
+// 1. 현장 기사 목록 불러오기 (출근부 및 기사 상태 연동)
+/*function loadLiveDriverList() {
+    console.log("실시간 기사 목록 불러오기 실행...");
+    if (typeof google === "undefined" || !google.script || !google.script.run) {
+        console.warn("구글 앱스 스크립트 환경이 아닙니다.");
+        return;
+    }
+
+    google.script.run
+        .withSuccessHandler(function(driverList) {
+            renderDriverSelectBox(driverList);
+        })
+        .withFailureHandler(function(err) {
+            console.error("기사 목록 불러오기 실패:", err);
+            var box = document.getElementById("driverStatusBox");
+            if (box) box.innerText = "기사 현황 불러오기 실패";
+        })
+        .getDriverStatusList(); // 백엔드 기사 상태 조회 함수 호출
+}*/
+
+// 2. 배차 셀렉트박스 및 기사 상태 박스 렌더링
+function renderDriverSelectBox(drivers) {
+    var selectEl = document.getElementById("assignTypeSelect");
+    var statusBox = document.getElementById("driverStatusBox");
+    
+    if (!drivers || drivers.length === 0) {
+        if (statusBox) statusBox.innerText = "근무 중인 기사가 없습니다.";
+        return;
+    }
+
+    if (statusBox) {
+        statusBox.innerText = `현재 근무 중인 기사: ${drivers.length명}명 연동됨`;
+    }
+
+    if (selectEl) {
+        let html = '<option value="지정배차">-- 지정 기사 선택 --</option>';
+        drivers.forEach(function(d) {
+            // d.id 와 d.name 구조에 맞춰 매칭
+            html += `<option value="${d.id}">${d.name} (${d.id}) - ${d.status || '근무중'}</option>`;
+        });
+        selectEl.innerHTML = html;
+    }
+}
+
+// 3. 실시간 오더 관제판 갱신 함수 (필요한 경우 유지)
+function refreshOrderDashboard() {
+    if (typeof syncOrdersBoard === "function") {
+        syncOrdersBoard();
+    }
+}
+
+console.log("SubCoreJS 핵심 관제 함수 준비 완료");
+</script>

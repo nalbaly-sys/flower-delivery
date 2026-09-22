@@ -1,0 +1,122 @@
+<script>
+(function(){
+"use strict";
+if(window.SUB_COMMON_READY)return;
+window.SUB_COMMON_READY=true;
+console.log("SubCommonJS v8.0 SUBMASTER SAFE HYBRID Initializing...");
+
+window.subRunServer=function(functionName){
+    var args=Array.prototype.slice.call(arguments,1);
+    return new Promise(function(resolve,reject){
+        try{
+            if(typeof google==="undefined"||!google.script||!google.script.run){
+                reject(new Error("GAS 환경이 아닙니다."));
+                return;
+            }
+            if(!functionName||typeof functionName!=="string"){
+                reject(new Error("서버 함수명이 없습니다."));
+                return;
+            }
+            var runner=google.script.run.withSuccessHandler(function(res){
+                resolve(res);
+            }).withFailureHandler(function(err){
+                reject(err instanceof Error?err:new Error((err&&err.message)||String(err||"서버 통신 오류")));
+            });
+            if(typeof runner[functionName]!=="function"){
+                reject(new Error("서버 함수 없음: "+functionName));
+                return;
+            }
+            runner[functionName].apply(runner,args);
+        }catch(e){
+            reject(e);
+        }
+    });
+};
+
+window.runServer=function(explicitFunctionName){
+    if(typeof explicitFunctionName==="string"){
+        return function(){
+            var args=Array.prototype.slice.call(arguments);
+            return window.subRunServer.apply(null,[explicitFunctionName].concat(args));
+        };
+    }
+    return new Proxy({},{
+        get:function(target,functionName){
+            if(functionName==="then")return undefined;
+            return function(){
+                var args=Array.prototype.slice.call(arguments);
+                return window.subRunServer.apply(null,[functionName].concat(args));
+            };
+        }
+    });
+};
+
+window.subServer=function(functionName){
+    var args=Array.prototype.slice.call(arguments,1);
+    return window.subRunServer.apply(null,[functionName].concat(args));
+};
+
+window.subSafeJson=function(value,fallback){
+    if(value===null||value===undefined)return fallback===undefined?null:fallback;
+    if(typeof value==="string"){
+        try{return JSON.parse(value);}catch(e){return fallback===undefined?value:fallback;}
+    }
+    return value;
+};
+
+window.subGetAdminToken=function(){
+    return String(
+        window.ADMIN_TOKEN||
+        localStorage.getItem("SUBMASTER_SESSION_TOKEN")||
+        ""
+    ).trim();
+};
+
+window.subGetAdminId=function(){
+    return String(
+        window.ADMIN_ID||
+        localStorage.getItem("SUBMASTER_ID")||
+        ""
+    ).trim();
+};
+
+window.subGetAdminName=function(){
+    return String(
+        window.ADMIN_NAME||
+        localStorage.getItem("SUBMASTER_NAME")||
+        ""
+    ).trim();
+};
+
+window.subIsGasReady=function(){
+    return typeof google!=="undefined"&&!!google.script&&!!google.script.run;
+};
+
+window.subEscapeHtml=function(value){
+    return String(value===null||value===undefined?"":value)
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
+};
+
+window.subNormalizeArray=function(value){
+    var data=window.subSafeJson(value,[]);
+    return Array.isArray(data)?data:[];
+};
+
+window.subNotifyError=function(error,prefix){
+    var msg=(error&&error.message)||String(error||"알 수 없는 오류");
+    console.error(prefix||"SUBMASTER ERROR:",error);
+    return msg;
+};
+
+window.subCall=function(functionName){
+    var args=Array.prototype.slice.call(arguments,1);
+    return window.subRunServer.apply(null,[functionName].concat(args));
+};
+
+console.log("SubCommonJS v8.0 SUBMASTER SAFE HYBRID Ready");
+})();
+</script>

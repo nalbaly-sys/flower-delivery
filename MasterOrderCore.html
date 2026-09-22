@@ -1,0 +1,721 @@
+<script>
+console.log("MasterOrderCore v8 Initializing...");
+
+function formatMasterKoreanDateTime(value){
+    if(value===null||value===undefined||value==="")return "-";
+    try{
+        var d;
+        if(value instanceof Date)d=value;
+        else if(typeof value==="number")d=new Date(value);
+        else{
+            var text=String(value).trim();
+            if(!text)return "-";
+            d=new Date(text);
+        }
+        if(isNaN(d.getTime()))return String(value);
+        return new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).format(d).replace(/\.\s?/g,"-").replace(/\.$/,"");
+    }catch(e){
+        console.error("한국시간 변환 오류:",e);
+        return String(value||"-");
+    }
+}
+var previousOrderStatusMap={},isFirstLoad=true,lastOrderDataHash="";
+var masterPhotoViewerList=[],masterPhotoViewerIndex=0,masterPhotoViewerOpen=false,masterPhotoHistoryPushed=false,masterPhotoViewerScale=1;
+
+function getLatestDriverOptionsHtml(){
+    let availableDrivers=[];
+    if(Array.isArray(window.MASTER_DRIVER_CACHE)&&window.MASTER_DRIVER_CACHE.length>0)availableDrivers=window.MASTER_DRIVER_CACHE;
+    else if(typeof DRIVER_CACHE!=="undefined"&&Array.isArray(DRIVER_CACHE)&&DRIVER_CACHE.length>0)availableDrivers=DRIVER_CACHE;
+    else if(Array.isArray(window.DRIVER_CACHE)&&window.DRIVER_CACHE.length>0)availableDrivers=window.DRIVER_CACHE;
+    else if(Array.isArray(window.driversCache)&&window.driversCache.length>0)availableDrivers=window.driversCache;
+    let optionsHtml=`<option value="" disabled selected>-- 기사 선택 후 재배차 --</option>`;
+    if(Array.isArray(availableDrivers)&&availableDrivers.length>0){
+        availableDrivers.forEach(d=>{
+            let dId=d.id||d.driverId||d[0]||"",dName=d.name||d.driverName||d[1]||"",dStatus=d.status||d[4]||"퇴근함";
+            if(dId)optionsHtml+=`<option value="${String(dId).replace(/"/g,"&quot;")}|${String(dName).replace(/"/g,"&quot;")}">${dName} (${dStatus})</option>`;
+        });
+    }
+    return optionsHtml;
+}
+
+function refreshOrderDashboard(){
+    if(typeof window.runServer!=="function"&&(typeof google==="undefined"||!google.script||!google.script.run))return;
+    let fetchPromise,keywordEl=document.getElementById("searchKeyword"),keyword=keywordEl?keywordEl.value:"";
+    if(typeof window.runServer==="function")fetchPromise=runServer("getOrderDashboardData")(keyword);
+    else fetchPromise=new Promise((resolve,reject)=>{google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).getOrderDashboardData(keyword);});
+    fetchPromise.then(response=>{
+        try{
+            let orders=[],container=document.getElementById("orderContainer");
+            if(typeof response==="string"){
+                try{orders=JSON.parse(response);}catch(e){if(container)container.innerHTML=response;return;}
+            }else orders=response;
+            if(!Array.isArray(orders))orders=[];
+            window.__MASTER_ORDER_CACHE=orders;
+            let total=orders.length,uncheck=0,ing=0,done=0,reject=0;
+            orders.forEach(order=>{
+                const status=String(order.orderStatus||"").trim();
+                if(status==="거절"||status==="거절됨"||status==="취소")reject++;
+                else if(status==="배송완료"||status==="완료")done++;
+                else if(status==="수락"||status==="배송중"||status==="픽업"||status==="진행중")ing++;
+                else uncheck++;
+            });
+            updateTextIfChanged("sumOrder",total);updateTextIfChanged("sumUncheck",uncheck);updateTextIfChanged("sumIng",ing);updateTextIfChanged("sumDone",done);
+            const sumRejectEl=document.getElementById("sumReject");
+            if(sumRejectEl){
+                sumRejectEl.innerText=reject;
+                if(reject>0){
+                    sumRejectEl.style.color="#ef4444";
+                    sumRejectEl.classList.add("animate-blink");
+                }else{
+                    sumRejectEl.style.color="white";
+                    sumRejectEl.classList.remove("animate-blink");
+                }
+            }
+            if(!container)return;
+            if(orders.length===0){
+                container.innerHTML='<div style="text-align:center;color:#64748b;padding:20px;background:#1e293b;border-radius:8px;border:1px solid #334155;">현재 등록된 실시간 오더가 없습니다.</div>';
+                return;
+            }
+            orders.sort(function(a,b){
+                function getStatusWeight(status){
+                    let s=String(status||"").trim();
+                    if(s==="거절"||s==="거절됨")return 1;
+                    if(s==="미확인")return 2;
+                    if(s==="수락"||s==="진행중"||s==="수락됨")return 3;
+                    if(s==="배송완료")return 4;
+                    return 5;
+                }
+                let weightA=getStatusWeight(a.orderStatus),weightB=getStatusWeight(b.orderStatus);
+                if(weightA!==weightB)return weightA-weightB;
+                let timeA=new Date(a.regTime||0).getTime(),timeB=new Date(b.regTime||0).getTime();
+                if(timeA!==timeB)return timeB-timeA;
+                return String(a.id||"").localeCompare(String(b.id||""));
+            });
+            let newRejectAlerts=[];
+            orders.forEach(order=>{
+                let orderId=order.id||"ORDER-000",oStatus=String(order.orderStatus||"미확인").trim(),oldStatus=previousOrderStatusMap[orderId];
+                if(!isFirstLoad){
+                    let isNowReject=oStatus==="거절"||oStatus==="거절됨",wasReject=oldStatus==="거절"||oldStatus==="거절됨";
+                    if(isNowReject&&!wasReject)newRejectAlerts.push(`[${orderId}] ${order.productName||"상품"} 오더가 거절되었습니다!`);
+                }
+                previousOrderStatusMap[orderId]=oStatus;
+            });
+            isFirstLoad=false;
+            if(newRejectAlerts.length>0){
+                let audio=document.getElementById("alertSound");
+                if(audio)audio.play().catch(e=>{});
+                alert("🚨 [긴급] 오더 거절 발생!\n\n"+newRejectAlerts.join("\n"));
+            }
+            let driverOptionsHtml=getLatestDriverOptionsHtml(),html="";
+            orders.forEach(order=>{
+                let oStatus=String(order.orderStatus||"미확인").trim(),badgeClass="bg-mi",extraCardClass="",cardStyle="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:14px;margin-bottom:12px;color:#f8fafc;";
+                let correctionPrefix=order.isCorrected?"🛠️(정정) ":"";
+                let assignType=String(order.assignType||order.assignmentType||order.dispatchType||"").trim();
+                let driverName=String(order.driverName||"").trim();
+                let driverId=String(order.driverId||order.driverID||"").trim();
+                let isWaitingOrder=assignType==="지정배차"&&oStatus==="미확인"&&(!driverId||driverName==="미배정");
+
+                if(isWaitingOrder){
+                    badgeClass="bg-mi";
+                    extraCardClass="order-card-dispatch-waiting";
+                    cardStyle="background:#4a2b08;border:2px solid #f59e0b;box-shadow:0 0 0 2px rgba(245,158,11,.18),0 0 18px rgba(245,158,11,.28);border-radius:8px;padding:14px;margin-bottom:12px;color:#fff7ed;";
+                }else if(oStatus==="미확인"){
+                    badgeClass="bg-mi";
+                    cardStyle="background:#4a3a05;border:2px solid #eab308;border-radius:8px;padding:14px;margin-bottom:12px;color:#fef3c7;";
+                }else if(oStatus==="수락"||oStatus==="진행중"||oStatus==="수락됨"){
+                    badgeClass="bg-ing";
+                    cardStyle="background:#102f55;border:2px solid #3b82f6;border-radius:8px;padding:14px;margin-bottom:12px;color:#dbeafe;";
+                }else if(oStatus==="거절"||oStatus==="거절됨"){
+                    badgeClass="bg-reject";
+                    extraCardClass="order-card-reject-alert";
+                    cardStyle="background:#4a1111;border:2px solid #ef4444;border-radius:8px;padding:14px;margin-bottom:12px;color:#fee2e2;";
+                }else if(oStatus==="배송완료"){ 
+                    badgeClass="bg-done"; 
+                    cardStyle="background:#064e3b;border:2px solid #34d399;border-radius:8px;margin-bottom:12px;padding:14px;color:#d1fae5;"; 
+                }
+
+                let routesHtml="";
+                if(Array.isArray(order.routes))order.routes.forEach((r,idx)=>{
+                    let rText=typeof r==="string"?r:(r.text||"");
+                    let rStatus=(typeof r==="object"&&r.status)||"미픽업";
+                    let safeStatusClass=String(rStatus).replace(/[()]/g,"").replace(/\s+/g,"-");
+                    let arrowMark=idx===0?"경로 ➡️":"➡️";
+                    routesHtml+=`<div style="margin-bottom:4px;"><span>${arrowMark} ${rText}</span> <span class="route-step step-${safeStatusClass}">${rStatus}</span></div>`;
+                });
+
+                let photosHtml="";
+                if(Array.isArray(order.photos)&&order.photos.length>0){
+                    let encodedPhotoList=encodeURIComponent(JSON.stringify(order.photos));
+                    order.photos.forEach(function(p,index){
+                        let photoUrl=String(p||"").trim();
+                        if(photoUrl){
+                            photosHtml+=`<a href="javascript:void(0)" onclick="showMasterPhotosFromEncoded('${encodedPhotoList}',${index})" style="margin-right:6px;color:#38bdf8;text-decoration:underline;font-weight:bold;cursor:pointer;">[사진 ${index+1} 보기]</a>`;
+                        }
+                    });
+                    if(!photosHtml)photosHtml='<span style="color:#94a3b8;font-size:11px;">첨부사진 없음</span>';
+                }else{
+                    photosHtml='<span style="color:#94a3b8;font-size:11px;">첨부사진 없음</span>';
+                }
+
+                let safeOrderId=String(order.id||"ORDER-000").replace(/[^a-zA-Z0-9_-]/g,"_");
+
+                html+=`<div class="order-card ${extraCardClass}" id="card-${safeOrderId}" data-order-id="${String(order.id||"").replace(/"/g,"&quot;")}" style="${cardStyle}">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span class="order-id" style="font-weight:bold;color:#38bdf8;">🆔 ${order.id||"ORDER-000"}</span><span class="status-badge ${badgeClass}" style="padding:2px 8px;border-radius:4px;font-size:12px;font-weight:bold;">${isWaitingOrder?"📋 배차 대기":oStatus}</span></div>
+                ${isWaitingOrder?'<div style="background:#78350f;color:#fbbf24;border:1px solid #f59e0b;border-radius:6px;padding:6px 9px;margin:4px 0 9px;font-size:12px;font-weight:bold;text-align:center;box-shadow:0 0 10px rgba(245,158,11,.18);">📋 기사 미지정 · 배차가 필요합니다</div>':''}
+                <div style="font-size:15px;font-weight:bold;color:#f8fafc;margin:8px 0;">📦 ${correctionPrefix}${order.productName||"상품명 미기재"}</div>
+                <div class="route-display" style="font-size:13px;color:#cbd5e1;margin-bottom:6px;">${routesHtml}</div>
+                <div style="font-size:13px;color:#cbd5e1;margin-bottom:6px;">🚖 담당 기사: <b style="color:${isWaitingOrder?"#fbbf24":"#ffffff"};">${driverName||"미배정"}</b></div>
+                <div style="background:#0f172a;padding:8px;border-radius:6px;margin:8px 0;border:1px solid ${isWaitingOrder?"#f59e0b":"#334155"};display:flex;gap:6px;align-items:center;">
+                <select id="redispatch-select-${safeOrderId}" data-order-id="${String(order.id||"").replace(/"/g,"&quot;")}" class="select-control" style="flex:1;padding:4px;font-size:12px;background:#0f172a;color:#f8fafc;border:1px solid ${isWaitingOrder?"#f59e0b":"#334155"};border-radius:4px;">${driverOptionsHtml}</select>
+                <button type="button" onclick="openOrderEditModal('${String(order.id||"").replace(/'/g,"\\'")}')" style="background:#8b5cf6;color:white;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap;">✏️ 수정</button>
+                <button type="button" onclick="executeRedispatch('${String(order.id||"").replace(/'/g,"\\'")}')" style="background:#3b82f6;color:white;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap;">🔄 재배차</button>
+                <button type="button" onclick="executeCancelOrder('${String(order.id||"").replace(/'/g,"\\'")}')" style="background:#ef4444;color:white;border:none;padding:6px 10px;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap;">🗑️ 취소</button>
+                </div>
+                <div class="card-footer" style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#94a3b8;border-top:1px solid #334155;padding-top:6px;"><div>첨부: ${photosHtml}</div><span>등록: ${formatMasterKoreanDateTime(order.regTime)}</span></div>
+                </div>`;
+            });
+
+            let scrollPos=window.pageYOffset||document.documentElement.scrollTop;
+            container.innerHTML=html;
+            window.scrollTo(0,scrollPos);
+            if(typeof updateAllRedispatchDropdowns==="function")updateAllRedispatchDropdowns();
+        }catch(err){
+            console.error("ORDER PARSE ERROR",err);
+        }
+    }).catch(err=>console.error("오더 데이터 로드 실패:",err));
+}
+
+function updateTextIfChanged(elementId,newValue){
+    const el=document.getElementById(elementId);
+    if(el&&el.innerText!=String(newValue))el.innerText=newValue;
+}
+
+function normalizeMasterPhotoUrl(url){
+    let targetUrl=String(url||"").trim();
+    if(!targetUrl)return "";
+    if(targetUrl.includes("drive.google.com")){
+        let fileId="";
+        let match=targetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if(match&&match[1])fileId=match[1];
+        if(!fileId){
+            match=targetUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+            if(match&&match[1])fileId=match[1];
+        }
+        if(fileId)targetUrl="https://lh3.googleusercontent.com/d/"+fileId;
+    }
+    return targetUrl;
+}
+
+function showMasterPhotosFromEncoded(encodedPhotoList,startIndex){
+    let list=[];
+    try{
+        list=JSON.parse(decodeURIComponent(encodedPhotoList||""));
+    }catch(e){
+        list=[];
+    }
+    if(!Array.isArray(list)||!list.length){
+        alert("등록된 참고사진이 없습니다.");
+        return;
+    }
+    showMasterPhotos(list,startIndex);
+}
+
+function showMasterPhotos(photoArray,startIndex){
+    if(!Array.isArray(photoArray))photoArray=[photoArray];
+    masterPhotoViewerList=photoArray.map(function(v){return String(v||"").trim();}).filter(Boolean);
+
+    if(!masterPhotoViewerList.length){
+        alert("등록된 참고사진이 없습니다.");
+        return;
+    }
+
+    masterPhotoViewerIndex=Number.isFinite(Number(startIndex))?Number(startIndex):0;
+    if(masterPhotoViewerIndex<0||masterPhotoViewerIndex>=masterPhotoViewerList.length)masterPhotoViewerIndex=0;
+
+    let viewer=document.getElementById("masterPhotoViewer");
+
+    if(!viewer){
+        viewer=document.createElement("div");
+        viewer.id="masterPhotoViewer";
+        viewer.style.cssText="position:fixed;inset:0;width:100%;height:100%;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.94);overflow:hidden;touch-action:none;";
+        viewer.innerHTML=`
+        <div id="masterPhotoViewerBg" style="position:absolute;inset:0;background:rgba(0,0,0,.94);"></div>
+        <div id="masterPhotoViewerBody" style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none;">
+            <img id="masterPhotoViewerImage" src="" alt="참고사진" style="max-width:90%;max-height:82vh;object-fit:contain;border-radius:10px;cursor:grab;user-select:none;-webkit-user-select:none;transform:translate(0px,0px) scale(1);transition:transform .08s ease-out;">
+            <button type="button" id="masterPhotoPrev" onclick="event.stopPropagation();masterPhotoPrev()" style="display:none;position:absolute;left:12px;top:50%;transform:translateY(-50%);width:48px;height:48px;border:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:34px;line-height:1;z-index:20;cursor:pointer;">‹</button>
+            <button type="button" id="masterPhotoNext" onclick="event.stopPropagation();masterPhotoNext()" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);width:48px;height:48px;border:0;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:34px;line-height:1;z-index:20;cursor:pointer;">›</button>
+            <button type="button" onclick="event.stopPropagation();closeMasterPhotoViewer()" style="position:absolute;right:15px;top:15px;width:46px;height:46px;border:0;border-radius:50%;background:#ef4444;color:#fff;font-size:27px;font-weight:bold;z-index:30;cursor:pointer;box-shadow:0 3px 12px rgba(0,0,0,.5);">×</button>
+            <div id="masterPhotoCounter" style="position:absolute;left:50%;bottom:58px;transform:translateX(-50%);background:rgba(0,0,0,.65);color:#fff;padding:7px 14px;border-radius:20px;font-size:13px;font-weight:bold;z-index:20;pointer-events:none;"></div>
+            <div style="position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#e2e8f0;padding:6px 12px;border-radius:16px;font-size:11px;z-index:20;pointer-events:none;white-space:nowrap;">💡 확대/축소 · 더블클릭 확대 · 뒤로가기/X 닫기</div>
+        </div>`;
+        document.body.appendChild(viewer);
+
+        const img=document.getElementById("masterPhotoViewerImage");
+        let startX=0,startY=0,dragging=false,initialDistance=0;
+
+        function getDistance(e){
+            if(!e.touches||e.touches.length<2)return 0;
+            return Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+        }
+
+        img.addEventListener("dblclick",function(e){
+            e.stopPropagation();
+            if(masterPhotoViewerScale===1)masterPhotoViewerScale=2.5;
+            else{
+                masterPhotoViewerScale=1;
+                masterPhotoViewerResetPosition();
+            }
+            masterPhotoViewerUpdateTransform();
+        });
+
+        img.addEventListener("mousedown",function(e){
+            if(masterPhotoViewerScale<=1)return;
+            dragging=true;
+            startX=e.clientX;
+            startY=e.clientY;
+            e.preventDefault();
+        });
+
+        window.addEventListener("mousemove",function(e){
+            if(!dragging)return;
+            masterPhotoViewerPosX+=e.clientX-startX;
+            masterPhotoViewerPosY+=e.clientY-startY;
+            startX=e.clientX;
+            startY=e.clientY;
+            masterPhotoViewerUpdateTransform();
+        });
+
+        window.addEventListener("mouseup",function(){dragging=false;});
+
+        img.addEventListener("touchstart",function(e){
+            if(e.touches.length===2){
+                initialDistance=getDistance(e);
+                return;
+            }
+            if(e.touches.length===1&&masterPhotoViewerScale>1){
+                dragging=true;
+                startX=e.touches[0].clientX;
+                startY=e.touches[0].clientY;
+            }
+        },{passive:false});
+
+        img.addEventListener("touchmove",function(e){
+            if(e.touches.length===2){
+                e.preventDefault();
+                let currentDistance=getDistance(e);
+                if(initialDistance>0&&currentDistance>0){
+                    let factor=currentDistance/initialDistance;
+                    masterPhotoViewerScale*=factor;
+                    if(masterPhotoViewerScale<1)masterPhotoViewerScale=1;
+                    if(masterPhotoViewerScale>5)masterPhotoViewerScale=5;
+                    initialDistance=currentDistance;
+                    masterPhotoViewerUpdateTransform();
+                }
+                return;
+            }
+            if(e.touches.length===1&&dragging&&masterPhotoViewerScale>1){
+                e.preventDefault();
+                masterPhotoViewerPosX+=e.touches[0].clientX-startX;
+                masterPhotoViewerPosY+=e.touches[0].clientY-startY;
+                startX=e.touches[0].clientX;
+                startY=e.touches[0].clientY;
+                masterPhotoViewerUpdateTransform();
+            }
+        },{passive:false});
+
+        img.addEventListener("touchend",function(){dragging=false;initialDistance=0;});
+
+        viewer.addEventListener("wheel",function(e){
+            e.preventDefault();
+            masterPhotoViewerScale+=e.deltaY<0?.15:-.15;
+            if(masterPhotoViewerScale<1)masterPhotoViewerScale=1;
+            if(masterPhotoViewerScale>5)masterPhotoViewerScale=5;
+            if(masterPhotoViewerScale===1)masterPhotoViewerResetPosition();
+            masterPhotoViewerUpdateTransform();
+        },{passive:false});
+
+        document.addEventListener("keydown",function(e){
+            if(!masterPhotoViewerOpen)return;
+            if(e.key==="Escape")closeMasterPhotoViewer();
+            else if(e.key==="ArrowLeft")masterPhotoPrev();
+            else if(e.key==="ArrowRight")masterPhotoNext();
+        });
+
+        document.getElementById("masterPhotoViewerBg").addEventListener("click",function(){closeMasterPhotoViewer();});
+    }
+
+    masterPhotoViewerScale=1;
+    masterPhotoViewerResetPosition();
+    masterPhotoViewerOpen=true;
+
+    if(!masterPhotoHistoryPushed){
+        try{
+            history.pushState({masterPhotoViewer:true},"","#master-photo-viewer");
+            masterPhotoHistoryPushed=true;
+        }catch(e){}
+    }
+
+    updateMasterPhotoViewer();
+    viewer.style.display="flex";
+}
+
+var masterPhotoViewerPosX=0,masterPhotoViewerPosY=0;
+
+function masterPhotoViewerResetPosition(){
+    masterPhotoViewerPosX=0;
+    masterPhotoViewerPosY=0;
+}
+
+function masterPhotoViewerUpdateTransform(){
+    let img=document.getElementById("masterPhotoViewerImage");
+    if(!img)return;
+    img.style.transform="translate("+masterPhotoViewerPosX+"px,"+masterPhotoViewerPosY+"px) scale("+masterPhotoViewerScale+")";
+}
+
+function updateMasterPhotoViewer(){
+    let viewer=document.getElementById("masterPhotoViewer");
+    let img=document.getElementById("masterPhotoViewerImage");
+    let counter=document.getElementById("masterPhotoCounter");
+    let prev=document.getElementById("masterPhotoPrev");
+    let next=document.getElementById("masterPhotoNext");
+    if(!viewer||!img||!masterPhotoViewerList.length)return;
+
+    let targetUrl=normalizeMasterPhotoUrl(masterPhotoViewerList[masterPhotoViewerIndex]);
+    img.onerror=function(){
+        alert("이미지를 불러올 수 없습니다. 링크 주소를 확인해 주세요.");
+    };
+    img.src=targetUrl;
+
+    if(counter)counter.innerText="📷 "+(masterPhotoViewerIndex+1)+" / "+masterPhotoViewerList.length;
+    if(prev)prev.style.display=masterPhotoViewerList.length>1?"block":"none";
+    if(next)next.style.display=masterPhotoViewerList.length>1?"block":"none";
+
+    masterPhotoViewerUpdateTransform();
+}
+
+function masterPhotoPrev(){
+    if(!masterPhotoViewerList.length)return;
+    masterPhotoViewerIndex--;
+    if(masterPhotoViewerIndex<0)masterPhotoViewerIndex=masterPhotoViewerList.length-1;
+    masterPhotoViewerScale=1;
+    masterPhotoViewerResetPosition();
+    updateMasterPhotoViewer();
+}
+
+function masterPhotoNext(){
+    if(!masterPhotoViewerList.length)return;
+    masterPhotoViewerIndex++;
+    if(masterPhotoViewerIndex>=masterPhotoViewerList.length)masterPhotoViewerIndex=0;
+    masterPhotoViewerScale=1;
+    masterPhotoViewerResetPosition();
+    updateMasterPhotoViewer();
+}
+
+function closeMasterPhotoViewer(fromHistory){
+    let viewer=document.getElementById("masterPhotoViewer");
+    if(viewer)viewer.style.display="none";
+    masterPhotoViewerOpen=false;
+    masterPhotoViewerScale=1;
+    masterPhotoViewerResetPosition();
+
+    if(masterPhotoHistoryPushed){
+        masterPhotoHistoryPushed=false;
+        if(!fromHistory){
+            try{
+                if(location.hash==="#master-photo-viewer")history.back();
+            }catch(e){}
+        }
+    }
+}
+
+window.addEventListener("popstate",function(){
+    if(masterPhotoViewerOpen){
+        closeMasterPhotoViewer(true);
+    }
+});
+
+function executeRedispatch(orderId){
+    let safeOrderId=String(orderId);
+    let selectEl=document.getElementById("redispatch-select-"+safeOrderId.replace(/[^a-zA-Z0-9_-]/g,"_"));
+    if(!selectEl)selectEl=document.querySelector(`select[data-order-id="${safeOrderId.replace(/"/g,"&quot;")}"]`);
+    if(!selectEl)return;
+    let selectedVal=selectEl.value;
+    if(!selectedVal){
+        alert("재배차할 기사를 먼저 선택해주세요.");
+        selectEl.focus();
+        return;
+    }
+    let parts=selectedVal.split("|"),targetDriverId=parts[0];
+    if(!confirm(`[${orderId}] 오더를 해당 기사에게 재배차하시겠습니까?`))return;
+
+    const successHandler=function(res){
+        if(res&&res.success){
+            alert("🚀 성공적으로 재배차되었습니다!");
+            refreshOrderDashboard();
+        }else{
+            alert("❌ 재배차 실패: "+(res&&res.message||"알 수 없는 오류"));
+        }
+    };
+
+    const failureHandler=function(err){
+        alert("❌ 통신 오류: "+(err&&err.message||err));
+    };
+
+    if(typeof window.runServer==="function"){
+        runServer("redispatchOrder")(orderId,targetDriverId).then(successHandler).catch(failureHandler);
+    }else if(typeof google!=="undefined"&&google.script&&google.script.run){
+        google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).redispatchOrder(orderId,targetDriverId);
+    }else{
+        alert("GAS 서버 통신 환경이 아닙니다.");
+    }
+}
+
+function executeCancelOrder(orderId){
+    if(!confirm(`⚠️ [경고] 정말로 [${orderId}] 오더를 완전히 취소 및 삭제하시겠습니까?`))return;
+
+    const successHandler=function(res){
+        if(res&&res.success){
+            alert("🗑️ 오더가 성공적으로 취소(삭제)되었습니다.");
+            refreshOrderDashboard();
+        }else{
+            alert("❌ 오더 취소 실패: "+(res&&res.message||"알 수 없는 오류"));
+        }
+    };
+
+    const failureHandler=function(err){
+        alert("❌ 통신 오류: "+(err&&err.message||err));
+    };
+
+    if(typeof window.runServer==="function"){
+        runServer("cancelOrder")(orderId).then(successHandler).catch(failureHandler);
+    }else if(typeof google!=="undefined"&&google.script&&google.script.run){
+        google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).cancelOrder(orderId);
+    }else{
+        alert("GAS 서버 통신 환경이 아닙니다.");
+    }
+}
+
+//==================================================
+// 기존 오더 수정 모달
+// 원래 경로 INDEX를 기억하여 배송상태 보존
+//==================================================
+function openOrderEditModal(orderId){
+    let orders=window.__MASTER_ORDER_CACHE||[];
+    let order=orders.find(function(o){return String(o.id)===String(orderId);});
+
+    if(!order){
+        alert("수정할 오더 정보를 찾을 수 없습니다.");
+        return;
+    }
+
+    let routes=Array.isArray(order.routes)?order.routes:[];
+    let modal=document.getElementById("masterOrderEditModal");
+
+    if(!modal){
+        modal=document.createElement("div");
+        modal.id="masterOrderEditModal";
+        modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;";
+        document.body.appendChild(modal);
+    }
+
+    let routeHtml="";
+
+    routes.forEach(function(r,index){
+        let text=typeof r==="string"?r:(r.text||"");
+        let safeText=String(text).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+        routeHtml+=`<div class="edit-route-row" data-original-index="${index}" style="display:flex;gap:6px;margin-bottom:7px;">
+            <input type="text" class="edit-route-input" data-original-index="${index}" value="${safeText}" style="flex:1;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:5px;padding:8px;font-size:13px;box-sizing:border-box;">
+            <button type="button" onclick="removeEditRoute(this)" style="background:#ef4444;color:#fff;border:none;border-radius:5px;padding:0 10px;font-size:16px;cursor:pointer;">−</button>
+        </div>`;
+    });
+
+    modal.innerHTML=`<div style="width:100%;max-width:520px;background:#1e293b;border:1px solid #475569;border-radius:10px;padding:16px;box-sizing:border-box;box-shadow:0 10px 40px rgba(0,0,0,.5);max-height:90vh;overflow-y:auto;">
+        <div style="font-size:17px;font-weight:bold;color:#fff;margin-bottom:14px;">✏️ 오더 수정</div>
+
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:5px;">오더번호</div>
+        <div style="background:#0f172a;color:#38bdf8;border:1px solid #334155;border-radius:5px;padding:8px;margin-bottom:12px;font-weight:bold;">${order.id||""}</div>
+
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:5px;">상품명</div>
+        <input type="text" id="editOrderProductName" value="${String(order.productName||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}" style="width:100%;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:5px;padding:9px;font-size:14px;box-sizing:border-box;margin-bottom:14px;">
+
+        <div style="font-size:12px;color:#94a3b8;margin-bottom:5px;">배송경로</div>
+        <div id="editRouteContainer">${routeHtml}</div>
+
+        <button type="button" onclick="addEditRoute()" style="width:100%;background:#334155;color:#e2e8f0;border:1px dashed #64748b;border-radius:5px;padding:9px;font-size:13px;cursor:pointer;margin:4px 0 12px;">＋ 배송지 추가</button>
+
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:7px;padding:10px;margin-bottom:16px;">
+            <div style="font-size:12px;color:#94a3b8;margin-bottom:7px;">📷 수정 사진 추가</div>
+            <input type="file" id="editOrderPhotoInput" accept="image/*" multiple style="width:100%;color:#e2e8f0;font-size:12px;">
+            <div style="font-size:10px;color:#64748b;margin-top:6px;">기존 사진은 유지되며 선택한 사진이 추가됩니다.</div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+            <button type="button" onclick="closeOrderEditModal()" style="flex:1;background:#475569;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:bold;cursor:pointer;">취소</button>
+            <button type="button" onclick="saveOrderEdit('${String(order.id||"").replace(/'/g,"\\'")}')" style="flex:1;background:#8b5cf6;color:#fff;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:bold;cursor:pointer;">💾 수정 저장</button>
+        </div>
+    </div>`;
+
+    modal.style.display="flex";
+}
+
+//==================================================
+// 수정 모달 배송지 추가
+// 신규 경로는 original-index = -1
+//==================================================
+function addEditRoute(){
+    let container=document.getElementById("editRouteContainer");
+    if(!container)return;
+
+    let row=document.createElement("div");
+    row.className="edit-route-row";
+    row.setAttribute("data-original-index","-1");
+    row.style.cssText="display:flex;gap:6px;margin-bottom:7px;";
+
+    row.innerHTML=`<input type="text" class="edit-route-input" data-original-index="-1" placeholder="새 배송지를 입력하세요." style="flex:1;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:5px;padding:8px;font-size:13px;box-sizing:border-box;">
+    <button type="button" onclick="removeEditRoute(this)" style="background:#ef4444;color:#fff;border:none;border-radius:5px;padding:0 10px;font-size:16px;cursor:pointer;">−</button>`;
+
+    container.appendChild(row);
+
+    let input=row.querySelector(".edit-route-input");
+    if(input)input.focus();
+}
+
+//==================================================
+// 수정 모달 배송지 삭제
+//==================================================
+function removeEditRoute(button){
+    if(!button)return;
+
+    let row=button.closest(".edit-route-row");
+    if(!row)return;
+
+    row.remove();
+
+    let container=document.getElementById("editRouteContainer");
+
+    if(container&&!container.querySelector(".edit-route-row")){
+        addEditRoute();
+    }
+}
+
+function closeOrderEditModal(){
+    let modal=document.getElementById("masterOrderEditModal");
+    if(modal)modal.remove();
+}
+
+function saveOrderEdit(orderId){
+    let productEl=document.getElementById("editOrderProductName");
+    let productName=productEl?productEl.value.trim():"";
+
+    let routeInputs=document.querySelectorAll("#editRouteContainer .edit-route-input");
+    let routeArray=[];
+
+    routeInputs.forEach(function(input){
+        let value=String(input.value||"").trim();
+        if(!value)return;
+
+        let originalIndex=Number(input.getAttribute("data-original-index"));
+
+        if(!Number.isInteger(originalIndex))originalIndex=-1;
+
+        routeArray.push({
+            text:value,
+            originalIndex:originalIndex
+        });
+    });
+
+    if(!productName){
+        alert("상품명을 입력해주세요.");
+        return;
+    }
+
+    if(routeArray.length===0){
+        alert("배송지를 최소 1개 이상 입력해주세요.");
+        return;
+    }
+
+    let fileInput=document.getElementById("editOrderPhotoInput");
+    let files=fileInput&&fileInput.files?Array.from(fileInput.files):[];
+
+    function sendUpdate(uploadFiles){
+        if(typeof window.runServer==="function"){
+            runServer("updateOrderDetails")(orderId,productName,routeArray,uploadFiles).then(function(result){
+                if(result&&result.success){
+                    closeOrderEditModal();
+                    alert("🛠️ 오더 수정이 완료되었습니다."+(result.addedPhotos>0?"\n📷 사진 "+result.addedPhotos+"장 추가":""));
+                    refreshOrderDashboard();
+                }else{
+                    alert(result&&result.message?result.message:"오더 수정에 실패했습니다.");
+                }
+            }).catch(function(err){
+                console.error("오더 수정 오류:",err);
+                alert("오더 수정 중 오류가 발생했습니다.");
+            });
+            return;
+        }
+
+        if(typeof google!=="undefined"&&google.script&&google.script.run){
+            google.script.run
+                .withSuccessHandler(function(result){
+                    if(result&&result.success){
+                        closeOrderEditModal();
+                        alert("🛠️ 오더 수정이 완료되었습니다."+(result.addedPhotos>0?"\n📷 사진 "+result.addedPhotos+"장 추가":""));
+                        refreshOrderDashboard();
+                    }else{
+                        alert(result&&result.message?result.message:"오더 수정에 실패했습니다.");
+                    }
+                })
+                .withFailureHandler(function(err){
+                    console.error("오더 수정 오류:",err);
+                    alert("오더 수정 중 오류가 발생했습니다.");
+                })
+                .updateOrderDetails(orderId,productName,routeArray,uploadFiles);
+        }
+    }
+
+    if(files.length===0){
+        sendUpdate([]);
+        return;
+    }
+
+    let uploadFiles=[];
+    let completed=0;
+
+    files.forEach(function(file){
+        let reader=new FileReader();
+
+        reader.onload=function(e){
+            try{
+                let base64=String(e.target.result||"").split(",")[1]||"";
+
+                uploadFiles.push({
+                    name:file.name,
+                    mime:file.type||"image/jpeg",
+                    base64:base64
+                });
+            }catch(err){
+                console.error("사진 변환 오류:",err);
+            }
+
+            completed++;
+
+            if(completed===files.length){
+                sendUpdate(uploadFiles);
+            }
+        };
+
+        reader.onerror=function(){
+            completed++;
+
+            if(completed===files.length){
+                sendUpdate(uploadFiles);
+            }
+        };
+
+        reader.readAsDataURL(file);
+    });
+}
+
+console.log("MasterOrderCore v8 Ready");
+</script>

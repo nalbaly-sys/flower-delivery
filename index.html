@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>꽃배달 종합 실시간 관제 시스템</title>
+
+<style>
+<?!= include("MasterCSS"); ?>
+<?!= include("SubCSS"); ?>
+</style>
+<style>
+@keyframes rejectBlink{
+0%{border-color:#ef4444;box-shadow:0 0 0 rgba(239,68,68,0)}
+50%{border-color:#ef4444;box-shadow:0 0 15px rgba(239,68,68,.7)}
+100%{border-color:#ef4444;box-shadow:0 0 0 rgba(239,68,68,0)}
+}
+.order-card-reject-alert{animation:rejectBlink 1.5s infinite;border:2px solid #ef4444!important}
+</style>
+
+<?!= include("SubCommonJS"); ?>
+
+<script>
+window.WEB_APP_URL="<?= WEB_APP_URL ?>";
+window.ADMIN_TOKEN="<?= ADMIN_TOKEN ?>";
+window.ADMIN_ID="<?= ADMIN_ID ?>";
+window.ADMIN_NAME="<?= ADMIN_NAME ?>";
+window.ADMIN_ROLE="<?= ADMIN_ROLE ?>";
+console.log("WEB_APP_URL:",window.WEB_APP_URL);
+console.log("ADMIN:",window.ADMIN_ID,window.ADMIN_ROLE);
+</script>
+</head>
+
+<body>
+
+<!-- =========================================================
+     LOGIN
+========================================================= -->
+<div id="loginOverlay" style="display:none;position:fixed;inset:0;background:#020617;z-index:9999999;align-items:center;justify-content:center;padding:20px;box-sizing:border-box">
+<div style="width:100%;max-width:390px;background:#1e293b;border:1px solid #475569;border-radius:18px;box-shadow:0 25px 80px rgba(0,0,0,.65);overflow:hidden">
+<div style="padding:28px 24px 22px;background:#0f172a;border-bottom:1px solid #334155;text-align:center">
+<div style="font-size:42px;margin-bottom:8px">👑</div>
+<div style="font-size:21px;font-weight:900;color:#fff">꽃배달 종합 관제 시스템</div>
+<div style="font-size:12px;color:#94a3b8;margin-top:7px">MASTER 관리자 로그인</div>
+</div>
+
+<form id="adminLoginForm" onsubmit="performAdminLogin();return false" style="padding:24px">
+<div style="margin-bottom:13px">
+<label style="display:block;color:#cbd5e1;font-size:13px;font-weight:700;margin-bottom:6px">관리자 ID</label>
+<input id="loginId" type="text" autocomplete="username" placeholder="관리자 ID" style="width:100%;height:46px;box-sizing:border-box;padding:0 13px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:15px;outline:none">
+</div>
+
+<div style="margin-bottom:15px">
+<label style="display:block;color:#cbd5e1;font-size:13px;font-weight:700;margin-bottom:6px">비밀번호</label>
+<input id="loginPassword" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;height:46px;box-sizing:border-box;padding:0 13px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:15px;outline:none">
+</div>
+
+<div id="loginError" style="display:none;color:#fca5a5;background:#450a0a;border:1px solid #7f1d1d;border-radius:7px;padding:10px;font-size:12px;margin-bottom:12px;text-align:center"></div>
+
+<button type="submit" id="loginButton" style="width:100%;height:48px;border:0;border-radius:8px;background:#4f46e5;color:#fff;font-size:15px;font-weight:900;cursor:pointer">🔐 로그인</button>
+<div id="loginLoading" style="display:none;text-align:center;color:#94a3b8;font-size:12px;margin-top:12px">로그인 확인 중...</div>
+</form>
+</div>
+</div>
+
+<!-- =========================================================
+     APP
+========================================================= -->
+<div class="app">
+
+<header id="header">
+👑 꽃배달 실시간 종합 관제 센터
+<span>[최고 관리자 마스터 권한 모드]</span>
+</header>
+
+<div id="adminControlBar" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 15px;background:#111827;border-bottom:1px solid #334155">
+<div style="font-size:13px;color:#cbd5e1">👑 <b id="adminDisplayName"><?= ADMIN_NAME ?></b> <span style="color:#818cf8">[MASTER]</span></div>
+
+<div style="display:flex;gap:6px;align-items:center">
+<button type="button" id="masterRefreshButton" onclick="manualMasterRefresh()" title="전체 새로고침" style="border:1px solid #475569;background:#1e293b;color:#fff;padding:8px 11px;border-radius:7px;cursor:pointer;font-size:16px">🔄</button>
+<button type="button" onclick="openSoundSettings()" title="알림음 설정" style="border:1px solid #475569;background:#1e293b;color:#fff;padding:8px 11px;border-radius:7px;cursor:pointer;font-size:16px">🔔</button>
+<button type="button" onclick="openSubMasterManager()" style="border:1px solid #475569;background:#1e293b;color:#fff;padding:8px 12px;border-radius:7px;cursor:pointer;font-weight:700">👥 부마스터 관리</button>
+<button type="button" onclick="adminLogout()" style="border:1px solid #7f1d1d;background:#450a0a;color:#fecaca;padding:8px 12px;border-radius:7px;cursor:pointer;font-weight:700">로그아웃</button>
+</div>
+</div>
+
+<?!= include("Master"); ?>
+
+<!-- =========================================================
+     MAP
+========================================================= -->
+<section id="mapSection">
+<iframe id="mapFrame" src="about:blank" loading="lazy" style="width:100%;border:0"></iframe>
+</section>
+
+<!-- =========================================================
+     MAIN CONTAINER
+========================================================= -->
+<div class="container" style="width:100%;max-width:100%;margin:0 auto;padding:20px;box-sizing:border-box">
+
+<div class="tab-bar" style="border-radius:12px 12px 0 0;overflow:hidden;margin-bottom:0">
+<button type="button" class="tab-btn active" onclick="switchTab('tab1')">🚖 현장기사 출근부</button>
+<button type="button" class="tab-btn" onclick="switchTab('tab2')">📋 종합 오더 현황</button>
+<button type="button" class="tab-btn" onclick="switchTab('tab3')">✍️ 신규 오더 배차</button>
+</div>
+
+<div style="background:var(--bg-card);border:1px solid var(--border-color);border-top:none;border-radius:0 0 12px 12px;padding:20px">
+
+<!-- TAB 1 -->
+<div id="tab1" class="tab-content active" style="padding:0">
+<div class="section-title" style="margin-top:0">📊 실시간 현장 기사 출근 및 위치 현황</div>
+<div id="driverListBoard">⏳ 기사 정보를 불러오는 중...</div>
+</div>
+
+
+<!-- TAB 2 -->
+<div id="tab2" class="tab-content" style="padding:0">
+<div class="section-title" style="margin-top:0">📊 실시간 오더 관제 현황판 (10초 자동 갱신)</div>
+
+
+<div style="width:100%;box-sizing:border-box;background:#1e293b;padding:12px;border-radius:8px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid #334155">
+<span style="font-size:13px;font-weight:bold;color:#f8fafc">📥 엑셀 기간 선택:</span>
+<input type="date" id="excelStartDate" class="input-text" style="width:140px;padding:6px;font-size:13px;background:#0f172a;color:#f8fafc;border:1px solid #334155;cursor:pointer">
+<span style="font-weight:bold;color:#94a3b8">~</span>
+<input type="date" id="excelEndDate" class="input-text" style="width:140px;padding:6px;font-size:13px;background:#0f172a;color:#f8fafc;border:1px solid #334155;cursor:pointer">
+<button type="button" onclick="downloadAllDriversExcel(event)" style="padding:7px 12px;border:0;border-radius:6px;background:#16a34a;color:#fff;font-weight:bold;cursor:pointer">📥 전체 기사 Excel</button>
+</div>
+
+
+
+<div style="padding:5px 0 10px;display:flex;gap:8px;align-items:center;box-sizing:border-box">
+<input type="text" id="searchKeyword" class="input-text" placeholder="오플, 기사명, 기사ID 검색" style="flex:1;min-width:0">
+<button type="button" onclick="openMasterHistoryModal()" style="background:#475569!important;color:#fff;border:0;padding:10px 12px;border-radius:6px;font-weight:bold;cursor:pointer;white-space:nowrap">📜 배송완료 내역 조회</button>
+</div>
+
+<div id="orderContainer">
+<div style="text-align:center;color:#64748b;padding:20px">관제 데이터를 불러오는 중...</div>
+</div>
+</div>
+
+<!-- TAB 3 -->
+<div id="tab3" class="tab-content" style="padding:0">
+<div class="section-title" style="margin-top:0">✍️ 신규 복합 오더 발송 등록</div>
+
+<div class="form-box" style="border:none;box-shadow:none;padding:0;background:transparent">
+
+<div class="form-group">
+<label>📦 상품명</label>
+<input type="text" id="productName" class="input-text" placeholder="예 : 꽃다발, 근조화환, 축하화환">
+</div>
+
+<div class="form-group">
+<label>📍 배송 루트 빌더</label>
+<div class="route-input-container">
+<input type="text" id="routeItemInput" class="input-text" placeholder="예: 오플 경상대2 12시까지" onkeydown="if(event.key==='Enter'){event.preventDefault();addRouteChip()}">
+<button type="button" id="btnAddRoute" class="btn-add-route" onclick="addRouteChip()">➕ 추가</button>
+</div>
+
+<div id="addedRouteList" class="added-route-list">
+<p class="empty-route-msg" id="emptyMsg">추가된 배송 주소가 없습니다.</p>
+</div>
+</div>
+
+<div class="form-group">
+<label>🚖 배차 방식 및 기사 선택</label>
+<select id="assignTypeSelect" class="select-control">
+<option value="auto">⚡ 선착순 자동배차</option>
+</select>
+</div>
+
+<div class="form-group">
+<label>📷 참고 사진 (전표 등)</label>
+<input type="file" id="uploadFiles" accept="image/*" multiple style="display:none" onchange="previewImages()">
+
+<div class="file-btn-layout">
+<button type="button" id="btnFileTrigger" class="btn-file-trigger" onclick="document.getElementById('uploadFiles').click()">📂 사진 선택하기</button>
+<span id="fileStatus">선택된 파일 없음</span>
+</div>
+
+<div id="previewArea" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+</div>
+
+<button type="button" id="btnSubmitOrder" class="submit-btn" onclick="submitCompositeOrder()">🚀 관제판에 오더 등록발송</button>
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- =========================================================
+     REDISPATCH
+========================================================= -->
+<div id="redispatchModal" class="modal" style="display:none">
+<div class="modal-content" style="padding:20px;color:white">
+<h3>🚖 재배차 기사 선택</h3>
+<div id="redispatchDriverList" style="margin:15px 0"></div>
+<button type="button" class="submit-btn" onclick="closeRedispatchModal()">닫기</button>
+</div>
+</div>
+
+<!-- IMAGE VIEWER -->
+<div id="imageViewer" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:999999">
+<div style="position:absolute;right:24px;top:18px;font-size:42px;color:#fff;cursor:pointer;user-select:none" onclick="closeImageViewer()">✕</div>
+<img id="viewerImage" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:92%;max-height:92%;border-radius:12px;box-shadow:0 0 25px rgba(0,0,0,.5)">
+</div>
+
+<div id="masterToast" class="toast" style="display:none"></div>
+
+<div id="loadingLayer" style="display:none">
+<div id="loadingText">처리중입니다...</div>
+</div>
+
+</div>
+
+<audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+<?!= include('SubUIJS'); ?>
+
+<!-- =========================================================
+     SUB MASTER MODAL
+========================================================= -->
+<div id="subMasterModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:999999;padding:20px;overflow:auto">
+<div style="width:100%;max-width:650px;margin:30px auto;background:#1e293b;border:1px solid #475569;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden">
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:#0f172a;border-bottom:1px solid #334155">
+<div style="font-size:18px;font-weight:800;color:#fff">👥 부마스터 관리자 관리</div>
+<button type="button" onclick="closeSubMasterManager()" style="border:0;background:transparent;color:#94a3b8;font-size:28px;cursor:pointer">×</button>
+</div>
+
+<div style="padding:18px">
+
+<div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:15px;margin-bottom:18px">
+<div style="font-size:15px;font-weight:800;margin-bottom:12px;color:#fff">➕ 새 부마스터 생성</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div>
+<label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:5px">부마스터 ID</label>
+<input id="subMasterNewId" type="text" placeholder="예: SUB001" style="width:100%;height:42px;padding:0 10px;border-radius:7px;border:1px solid #475569;background:#1e293b;color:#fff">
+</div>
+
+<div>
+<label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:5px">이름</label>
+<input id="subMasterNewName" type="text" placeholder="예: 홍길동" style="width:100%;height:42px;padding:0 10px;border-radius:7px;border:1px solid #475569;background:#1e293b;color:#fff">
+</div>
+</div>
+
+<div style="margin-top:10px">
+<label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:5px">비밀번호</label>
+<input id="subMasterNewPassword" type="password" autocomplete="new-password" placeholder="4자리 이상" style="width:100%;height:42px;padding:0 10px;border-radius:7px;border:1px solid #475569;background:#1e293b;color:#fff">
+</div>
+
+<div style="margin-top:10px">
+<label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:5px">비밀번호 확인</label>
+<input id="subMasterNewPassword2" type="password" autocomplete="new-password" placeholder="비밀번호 다시 입력" style="width:100%;height:42px;padding:0 10px;border-radius:7px;border:1px solid #475569;background:#1e293b;color:#fff">
+</div>
+
+<button type="button" onclick="createSubMasterAccount()" style="width:100%;height:44px;margin-top:13px;border:0;border-radius:8px;background:#4f46e5;color:#fff;font-weight:800;cursor:pointer">➕ 부마스터 계정 생성</button>
+</div>
+
+<div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:10px">📋 등록된 부마스터</div>
+
+<div id="subMasterList" style="min-height:80px">
+<div style="text-align:center;color:#94a3b8;padding:20px">불러오는 중...</div>
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- =========================================================
+     SOUND MODAL
+========================================================= -->
+<div id="soundSettingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000000;padding:20px;align-items:center;justify-content:center">
+
+<div style="width:100%;max-width:360px;background:#1e293b;border:1px solid #475569;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;color:#fff">
+
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:#0f172a;border-bottom:1px solid #334155">
+<div style="font-size:18px;font-weight:800">🔔 알림음 설정</div>
+<button type="button" onclick="closeSoundSettings()" style="border:0;background:transparent;color:#94a3b8;font-size:28px;cursor:pointer">×</button>
+</div>
+
+<div style="padding:20px">
+<div style="font-size:13px;color:#94a3b8;margin-bottom:8px">오더 상태 알림에 사용할 알림음을 선택하세요.</div>
+
+<select id="soundSelectDropdown" style="width:100%;height:46px;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:0 12px;font-size:15px;outline:none">
+<option value="alert_00001">🔔 알림음 1</option><option value="alert_00002">🔔 알림음 2</option><option value="alert_00003">🔔 알림음 3</option><option value="alert_00004">🔔 알림음 4</option><option value="alert_00005">🔔 알림음 5</option><option value="alert_00006">🔔 알림음 6</option><option value="alert_00007">🔔 알림음 7</option><option value="alert_00008">🔔 알림음 8</option><option value="alert_00009">🔔 알림음 9</option><option value="alert_00010">🔔 알림음 10</option><option value="alert_00011">🔔 알림음 11</option><option value="alert_00012">🔔 알림음 12</option><option value="alert_00013">🔔 알림음 13</option><option value="alert_00014">🔔 알림음 14</option><option value="alert_00015">🔔 알림음 15</option><option value="alert_00016">🔔 알림음 16</option><option value="alert_00017">🔔 알림음 17</option><option value="alert_00018">🔔 알림음 18</option><option value="alert_00019">🔔 알림음 19</option><option value="alert_00020">🔔 알림음 20</option><option value="alert_00021">🔔 알림음 21</option><option value="alert_00022">🔔 알림음 22</option><option value="alert_00023">🔔 알림음 23</option><option value="alert_00024">🔔 알림음 24</option><option value="alert_00025">🔔 알림음 25</option><option value="alert_00026">🔔 알림음 26</option><option value="alert_00027">🔔 알림음 27</option><option value="alert_00028">🔔 알림음 28</option>
+</select>
+
+<div style="display:flex;gap:8px;margin-top:15px">
+<button type="button" onclick="testPlayAlertSound()" style="flex:1;height:44px;border:1px solid #475569;border-radius:8px;background:#334155;color:#fff;font-weight:700;cursor:pointer">🔊 미리듣기</button>
+<button type="button" onclick="saveSoundSettings()" style="flex:1;height:44px;border:0;border-radius:8px;background:#10b981;color:#fff;font-weight:800;cursor:pointer">💾 저장</button>
+</div>
+
+<div style="margin-top:12px;text-align:center;font-size:11px;color:#64748b">오더 수락 · 오더 거절 · 전체 배송완료에 적용됩니다.</div>
+</div>
+</div>
+</div>
+
+<!-- =========================================================
+     CORE FUNCTIONS
+========================================================= -->
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+function setLoginError(msg){const b=$("loginError");if(!b)return;b.innerText=msg||"";b.style.display=msg?"block":"none";}
+function showLogin(){const o=$("loginOverlay"),a=document.querySelector(".app");if(o)o.style.display="flex";if(a)a.style.display="none";setTimeout(()=>{$("loginId")?.focus()},100);}
+function hideLogin(){const o=$("loginOverlay"),a=document.querySelector(".app");if(o)o.style.display="none";if(a)a.style.display="block";}
+function loginBusy(f){const b=$("loginButton"),l=$("loginLoading");if(b){b.disabled=f;b.style.opacity=f?".6":"1";b.innerText=f?"🔐 로그인 확인 중...":"🔐 로그인";}if(l)l.style.display=f?"block":"none";}
+
+window.performAdminLogin=function(){
+
+  const id=$("loginId")?.value.trim()||"",
+        pw=$("loginPassword")?.value||"";
+
+  if(!id){
+    setLoginError("관리자 ID를 입력해주세요.");
+    $("loginId")?.focus();
+    return;
+  }
+
+  if(!pw){
+    setLoginError("비밀번호를 입력해주세요.");
+    $("loginPassword")?.focus();
+    return;
+  }
+
+  setLoginError("");
+  loginBusy(true);
+
+  google.script.run
+    .withSuccessHandler(function(res){
+
+      loginBusy(false);
+
+      if(!res||!res.success){
+        setLoginError(res?.message||"로그인에 실패했습니다.");
+        return;
+      }
+
+      window.ADMIN_TOKEN=res.token||res.sessionToken||"";
+      window.ADMIN_ID=res.id||id;
+
+      if(window.AndroidBridge&&typeof window.AndroidBridge.setAdminId==="function"){
+        window.AndroidBridge.setAdminId(window.ADMIN_ID);
+      }
+
+      window.ADMIN_NAME=res.name||"";
+      window.ADMIN_ROLE=res.role||"MASTER";
+
+      if(window.AndroidBridge&&typeof window.AndroidBridge.setAdminId==="function"){
+        window.AndroidBridge.setAdminId(window.ADMIN_ID);
+      }
+
+      if(window.ADMIN_TOKEN){
+        localStorage.setItem("ADMIN_SESSION_TOKEN",window.ADMIN_TOKEN);
+      }
+
+      localStorage.setItem("ADMIN_ID",window.ADMIN_ID);
+      localStorage.setItem("ADMIN_NAME",window.ADMIN_NAME);
+      localStorage.setItem("ADMIN_ROLE",window.ADMIN_ROLE);
+
+      hideLogin();
+
+      if($("adminDisplayName")){
+        $("adminDisplayName").innerText=
+          window.ADMIN_NAME||window.ADMIN_ID;
+      }
+
+      setTimeout(()=>{
+        if(typeof refreshMaster==="function"){
+          refreshMaster();
+        }
+      },300);
+
+    })
+    .withFailureHandler(function(err){
+
+      loginBusy(false);
+
+      setLoginError(
+        "로그인 통신 오류: "+
+        (err?.message||err)
+      );
+
+    })
+    .verifyAdminAppLogin(id,pw);
+};
+
+
+function restoreAdminSession(){
+
+  const token=localStorage.getItem("ADMIN_SESSION_TOKEN")||"";
+  const id=localStorage.getItem("ADMIN_ID")||"";
+  const name=localStorage.getItem("ADMIN_NAME")||"";
+  const role=localStorage.getItem("ADMIN_ROLE")||"";
+
+  if(!token){
+    showLogin();
+    return;
+  }
+
+  loginBusy(true);
+
+  google.script.run
+    .withSuccessHandler(function(res){
+
+      loginBusy(false);
+
+      if(!res||!res.success){
+
+        localStorage.removeItem("ADMIN_SESSION_TOKEN");
+        localStorage.removeItem("ADMIN_ID");
+        localStorage.removeItem("ADMIN_NAME");
+        localStorage.removeItem("ADMIN_ROLE");
+
+        showLogin();
+        return;
+      }
+
+      window.ADMIN_TOKEN=token;
+      window.ADMIN_ID=res.id||id;
+      window.ADMIN_NAME=res.name||name;
+      window.ADMIN_ROLE=res.role||role||"MASTER";
+
+      if(window.AndroidBridge&&
+         typeof window.AndroidBridge.setAdminId==="function"){
+
+        window.AndroidBridge.setAdminId(
+          window.ADMIN_ID
+        );
+      }
+
+      hideLogin();
+
+      if($("adminDisplayName")){
+        $("adminDisplayName").innerText=
+          window.ADMIN_NAME||window.ADMIN_ID;
+      }
+
+      setTimeout(function(){
+
+        if(typeof refreshMaster==="function"){
+          refreshMaster();
+        }
+
+      },300);
+
+    })
+    .withFailureHandler(function(err){
+
+      loginBusy(false);
+      showLogin();
+
+    })
+    .verifyAdminAppSession(
+      token
+    );
+}
+
+window.manualMasterRefresh=function(){
+const b=$("masterRefreshButton");if(b){b.disabled=true;b.style.opacity=".55";b.innerText="⏳";}
+try{if(typeof refreshMaster==="function")refreshMaster();else{if(typeof syncDriversBoard==="function")syncDriversBoard();if(typeof syncOrdersBoard==="function")syncOrdersBoard();if(typeof refreshMap==="function")refreshMap();}}catch(e){console.error("MANUAL REFRESH ERROR:",e)}
+setTimeout(()=>{if(b){b.disabled=false;b.style.opacity="1";b.innerText="🔄"}},1200);
+};
+
+function checkAdminSession(){
+const token=localStorage.getItem("ADMIN_SESSION_TOKEN")||window.ADMIN_TOKEN||"",id=localStorage.getItem("ADMIN_ID")||window.ADMIN_ID||"";
+if(token&&id){
+window.ADMIN_TOKEN=token;window.ADMIN_ID=id;
+window.ADMIN_NAME=localStorage.getItem("ADMIN_NAME")||window.ADMIN_NAME||"";
+window.ADMIN_ROLE=localStorage.getItem("ADMIN_ROLE")||window.ADMIN_ROLE||"MASTER";
+hideLogin();if($("adminDisplayName"))$("adminDisplayName").innerText=window.ADMIN_NAME||window.ADMIN_ID;
+}else showLogin();
+}
+
+document.addEventListener("DOMContentLoaded",function(){
+const pw=$("loginPassword"),id=$("loginId");
+if(pw)pw.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();performAdminLogin()}});
+if(id)id.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();pw?.focus()}});
+setTimeout(checkAdminSession,50);
+});
+})();
+</script>
+
+<!-- =========================================================
+     COMMON MASTER CORE
+========================================================= -->
+<script>
+console.log("MASTER CORE ENGINE HYBRID v7.2 READY");
+
+function loadMapIframe(){
+const f=document.getElementById("mapFrame");if(!f)return;
+const url=(window.WEB_APP_URL||"")+"?page=map";
+if(f.src!==url)f.src=url;
+}
+
+function updateMapDrivers(drivers){
+const f=document.getElementById("mapFrame");
+if(f&&f.contentWindow&&typeof f.contentWindow.renderDrivers==="function")f.contentWindow.renderDrivers(drivers);
+}
+
+function safe(v){if(v===null||v===undefined)return "";return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}
+function number(v){const n=Number(v);return isNaN(n)?0:n}
+function el(id){return document.getElementById(id)}
+function formatDate(v){if(!v)return "-";try{const d=new Date(v);return isNaN(d.getTime())?"-":d.toLocaleString("ko-KR")}catch(e){return "-"}}
+function safeCall(fn){try{if(typeof fn==="function")return fn()}catch(e){console.error("SAFE CALL ERROR",e)}}
+
+let toastTimer=null;
+function showToast(message,type){
+const t=el("masterToast");if(!t)return;
+t.innerHTML=safe(message).replace(/\n/g,"<br>");t.className="toast";if(type)t.classList.add(type);t.style.display="block";t.classList.add("show");
+if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.classList.remove("show");t.style.display="none"},3000);
+}
+
+function refreshMaster(){
+console.log("MASTER REFRESH");
+if(typeof syncDriversBoard==="function")syncDriversBoard();
+if(typeof syncOrdersBoard==="function")syncOrdersBoard();
+if(typeof refreshMap==="function")refreshMap();
+}
+
+function showError(m){console.error(m);showToast(m,"error")}
+function showConfirm(m,ok,cancel){const r=confirm(m);if(r&&typeof ok==="function")ok();else if(!r&&typeof cancel==="function")cancel()}
+window.safe=safe;window.showToast=showToast;window.safeCall=safeCall;
+window.addEventListener("error",e=>console.error("MASTER ERROR:",e.message));
+
+console.log("MASTER HYBRID CORE READY");
+</script>
+
+<!-- =========================================================
+     ROUTE / PHOTO ENGINE
+========================================================= -->
+<script>
+var MASTER_UPLOAD_FILES=[],globalRouteArray=[];
+
+function addRouteChip(){
+const i=el("routeItemInput");if(!i)return;
+const v=i.value.trim();if(!v){showToast("배송 주소를 입력해주세요.","error");return}
+globalRouteArray.push(v);renderRouteChips();i.value="";i.focus();
+}
+
+function removeRouteChip(i){globalRouteArray.splice(i,1);renderRouteChips()}
+
+function renderRouteChips(){
+const c=el("addedRouteList");if(!c)return;
+if(!globalRouteArray.length){c.innerHTML='<p class="empty-route-msg" id="emptyMsg">추가된 배송 주소가 없습니다.</p>';return}
+c.innerHTML=globalRouteArray.map((a,i)=>`<div class="route-chip" style="display:inline-flex;align-items:center;background:#f1f5f9;padding:4px 10px;border-radius:15px;margin:4px;font-size:13px;border:1px solid #cbd5e1">📍 ${i+1}. ${safe(a)}<button type="button" onclick="removeRouteChip(${i})" style="border:none;background:none;margin-left:6px;color:#ef4444;font-weight:bold;cursor:pointer">×</button></div>`).join("");
+}
+
+function previewImages(){
+const input=el("uploadFiles"),area=el("previewArea");if(!input||!area)return;
+area.innerHTML="";MASTER_UPLOAD_FILES=Array.from(input.files||[]);
+if(el("fileStatus"))el("fileStatus").innerText=MASTER_UPLOAD_FILES.length?MASTER_UPLOAD_FILES.length+"개 사진 선택됨":"선택된 파일 없음";
+MASTER_UPLOAD_FILES.forEach((file,index)=>{
+const r=new FileReader();
+r.onload=e=>{
+const box=document.createElement("div");
+box.style.cssText="position:relative;width:75px;height:75px;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;background:#fff";
+box.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover"><button type="button" onclick="removePreviewImage(${index})" style="position:absolute;right:2px;top:2px;border:none;background:#ef4444;color:white;border-radius:50%;width:20px;height:20px;font-size:11px;font-weight:bold;cursor:pointer">×</button>`;
+area.appendChild(box);
+};
+r.readAsDataURL(file);
+});
+}
+
+function removePreviewImage(i){MASTER_UPLOAD_FILES.splice(i,1);rebuildFileInput();previewImages()}
+function rebuildFileInput(){const i=el("uploadFiles");if(!i)return;const d=new DataTransfer();MASTER_UPLOAD_FILES.forEach(f=>d.items.add(f));i.files=d.files}
+function convertFileToBase64(file){
+    return new Promise(function(resolve,reject){
+        if(!file){reject(new Error("파일이 없습니다."));return;}
+        if(!file.type||!file.type.startsWith("image/")){
+            const reader=new FileReader();
+            reader.onload=function(e){
+                const data=String(e.target.result||"");
+                resolve({name:file.name,mime:file.type,base64:data.indexOf(",")>=0?data.split(",")[1]:data});
+            };
+            reader.onerror=function(){reject(reader.error||new Error("파일 읽기 실패"));};
+            reader.readAsDataURL(file);
+            return;
+        }
+
+        const img=new Image();
+        const reader=new FileReader();
+
+        reader.onload=function(e){
+            img.onload=function(){
+                const maxSize=1280;
+                let w=img.naturalWidth;
+                let h=img.naturalHeight;
+
+                if(w>maxSize||h>maxSize){
+                    if(w>=h){
+                        h=Math.round(h*maxSize/w);
+                        w=maxSize;
+                    }else{
+                        w=Math.round(w*maxSize/h);
+                        h=maxSize;
+                    }
+                }
+
+                const canvas=document.createElement("canvas");
+                canvas.width=w;
+                canvas.height=h;
+
+                const ctx=canvas.getContext("2d");
+                ctx.drawImage(img,0,0,w,h);
+
+                const dataUrl=canvas.toDataURL("image/jpeg",0.78);
+                resolve({
+                    name:file.name.replace(/\.[^.]+$/,"")+".jpg",
+                    mime:"image/jpeg",
+                    base64:dataUrl.split(",")[1]
+                });
+            };
+
+            img.onerror=function(){reject(new Error("이미지 변환 실패"));};
+            img.src=e.target.result;
+        };
+
+        reader.onerror=function(){reject(reader.error||new Error("파일 읽기 실패"));};
+        reader.readAsDataURL(file);
+    });
+}
+
+function getUploadFiles(){return MASTER_UPLOAD_FILES.length?Promise.all(MASTER_UPLOAD_FILES.map(convertFileToBase64)):Promise.resolve([])}
+
+console.log("ROUTE / PHOTO ENGINE READY");
+</script>
+
+<script>
+console.log("MASTER UI ENGINE ULTIMATE v7.3 READY");
+
+function switchTab(tabId){
+    console.log("TAB SWITCH:",tabId);
+    var tabs=document.querySelectorAll(".tab-content");
+    var buttons=document.querySelectorAll(".tab-btn");
+    tabs.forEach(function(tab){tab.classList.remove("active");tab.style.display="none";});
+    buttons.forEach(function(btn){btn.classList.remove("active");});
+    var target=document.getElementById(tabId);
+    if(target){target.classList.add("active");target.style.display="block";}
+    var index=Number(String(tabId).replace("tab",""))-1;
+    if(buttons[index])buttons[index].classList.add("active");
+    if(tabId==="tab1"&&typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("TAB1 DRIVER REFRESH ERROR:",e);}}
+    if(tabId==="tab2"&&typeof refreshOrderDashboard==="function"){try{refreshOrderDashboard();}catch(e){console.error("TAB2 ORDER REFRESH ERROR:",e);}}
+    if(tabId==="tab3"){console.log("TAB3 신규 오더 배차");if(typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("TAB3 DRIVER REFRESH ERROR:",e);}}}
+}
+window.switchTab=switchTab;
+
+function initMaster(){
+    console.log("MASTER ULTIMATE v7.3 START");
+    switchTab("tab1");
+    if(typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("DRIVER INIT ERROR:",e);}}
+    setTimeout(function(){if(typeof initMapEngine==="function"){try{initMapEngine();}catch(e){console.error("MAP INIT ERROR:",e);}}},300);
+    if(typeof toggleDriverInput==="function")toggleDriverInput();
+    if(!window.masterPollInterval){
+        window.masterPollInterval=setInterval(function(){
+            var tab2=document.getElementById("tab2");
+            if(tab2&&tab2.classList.contains("active")&&typeof refreshOrderDashboard==="function"){
+                try{refreshOrderDashboard();}catch(e){console.error("ORDER POLLING ERROR:",e);}
+            }
+        },10000);
+    }
+    console.log("MASTER INIT COMPLETE");
+}
+
+document.addEventListener("DOMContentLoaded",function(){
+    console.log("MASTER UI DOM READY");
+    setTimeout(function(){if(typeof initMaster==="function")initMaster();},300);
+});
+
+function toggleDriverInput(){
+    var type=document.getElementById("assignTypeSelect");
+    var field=document.getElementById("driverIdField");
+    if(!type)return;
+    if(!field)return;
+    if(type.value==="선착순배차"||type.value==="auto"){
+        field.style.display="none";
+        var input=document.getElementById("targetDriverId");
+        if(input)input.value="";
+    }else{
+        field.style.display="block";
+    }
+}
+
+function setTargetDriver(driverId){
+    var input=document.getElementById("targetDriverId");
+    if(input)input.value=driverId;
+}
+
+function reloadMaster(){
+    if(typeof showLoading==="function")showLoading("새로고침 중...");
+    try{
+        if(typeof refreshMaster==="function")refreshMaster();
+    }catch(e){
+        console.error("RELOAD MASTER ERROR:",e);
+    }finally{
+        if(typeof hideLoading==="function")setTimeout(hideLoading,300);
+    }
+}
+
+function closeModal(id){
+    var modal=document.getElementById(id);
+    if(modal)modal.style.display="none";
+}
+
+window.addEventListener("resize",function(){
+    if(typeof resizeMap==="function")resizeMap();
+});
+
+function showLoading(message){
+    var layer=document.getElementById("loadingLayer");
+    var text=document.getElementById("loadingText");
+    if(text&&message)text.innerText=message;
+    if(layer)layer.style.display="flex";
+}
+
+function hideLoading(){
+    var layer=document.getElementById("loadingLayer");
+    if(layer)layer.style.display="none";
+}
+
+function syncDriversBoard(){
+    if(typeof google==="undefined"||!google.script||!google.script.run)return;
+    google.script.run.withSuccessHandler(function(resData){
+        try{
+            if(!resData)return;
+            var drivers=typeof resData==="string"?JSON.parse(resData):resData;
+            if(!Array.isArray(drivers))drivers=[];
+            window.MASTER_DRIVER_CACHE=drivers;
+            window.DRIVER_CACHE=drivers;
+            if(typeof renderDriverBoard==="function")renderDriverBoard(drivers);
+            if(typeof updateDriverSummary==="function")updateDriverSummary(drivers);
+            updateAllRedispatchDropdowns(drivers);
+            console.log("기사 목록 로드 완료:",drivers.length+"명");
+        }catch(err){
+            console.error("syncDriversBoard 파싱 에러:",err);
+        }
+    }).withFailureHandler(function(err){
+        console.error("기사 목록 통신 실패:",err);
+    }).getDriverList();
+}
+
+function updateAllRedispatchDropdowns(drivers){
+    if(!Array.isArray(drivers))drivers=window.MASTER_DRIVER_CACHE||window.DRIVER_CACHE||[];
+
+    var assignSelect=document.getElementById("assignTypeSelect");
+
+    if(assignSelect){
+        var html='<option value="지정배차|">🎯 지정배차 - 마스터</option>';
+
+        drivers.forEach(function(d){
+            var id=d.id||d.driverId||"";
+            var name=d.name||d.driverName||"";
+            var status=d.status||"퇴근함";
+            if(!id)return;
+            html+='<option value="'+safe(String(id)+"|"+String(name))+'">'+safe(name)+' ['+safe(status)+']</option>';
+        });
+
+        assignSelect.innerHTML=html;
+
+        if(assignSelect.options.length){
+            assignSelect.value="지정배차|";
+        }
+
+        assignSelect.onchange=function(){
+            toggleDriverInput();
+        };
+
+        toggleDriverInput();
+    }
+
+    var redispatchHtml='<option value="" disabled selected>-- 기사 선택 후 재배차 --</option>';
+
+    drivers.forEach(function(d){
+        var id=d.id||d.driverId||"";
+        var name=d.name||d.driverName||"";
+        var status=d.status||"퇴근함";
+        if(!id)return;
+        redispatchHtml+='<option value="'+safe(String(id)+"|"+String(name))+'">'+safe(name)+' ('+safe(status)+')</option>';
+    });
+
+    document.querySelectorAll('[id^="redispatch-select-"]').forEach(function(selectEl){
+        var oldValue=selectEl.value;
+        selectEl.innerHTML=redispatchHtml;
+        if(oldValue){
+            var found=Array.from(selectEl.options).some(function(o){
+                return o.value===oldValue;
+            });
+            if(found)selectEl.value=oldValue;
+        }
+    });
+
+    console.log("기사 배정 목록 갱신 완료:",drivers.length+"명");
+}
+
+function forceRefresh(){
+    if(typeof reloadMaster==="function")reloadMaster();
+}
+
+function addNewRouteField(){
+    if(typeof window.addRouteFieldLogic==="function")window.addRouteFieldLogic();
+}
+
+function submitCompositeOrder(){
+    if(typeof window.submitOrderLogic==="function")window.submitOrderLogic();
+}
+
+window.forceRefresh=forceRefresh;
+window.addNewRouteField=addNewRouteField;
+window.submitCompositeOrder=submitCompositeOrder;
+
+console.log("MASTER UI ENGINE ULTIMATE v7.3 READY");
+</script>
+
+
+<!-- =========================================================
+     EXTERNAL MASTER MODULES
+=========================================================
+<script><?!= include("MasterUIJS"); ?></script>-->
+<script><?!= include("MasterMapJS"); ?></script>
+<script><?!= include("MasterDriverJS"); ?></script>
+<script><?!= include("MasterRedispatchJS"); ?></script>
+<?!= include("MasterOrderCore"); ?>
+
+<!-- =========================================================
+     ORDER ENGINE
+========================================================= -->
+<script>
+console.log("MASTER ORDER ENGINE STABLE V7.8 START");
+
+var MASTER_ORDER_CACHE=[],previousOrderStatusMap={},isFirstLoad=true;
+
+async function submitCompositeOrder(){
+if(typeof showLoading==="function")showLoading("오더 등록 중...");
+try{
+const p=el("productName"),productName=p?.value.trim()||"";
+if(!productName){if(typeof hideLoading==="function")hideLoading();alert("상품명을 입력하세요");p?.focus();return}
+
+let routeArray=globalRouteArray.length?[...globalRouteArray]:[];
+if(!routeArray.length)document.querySelectorAll(".route-addr").forEach(i=>{const v=i.value.trim();if(v)routeArray.push(v)});
+if(!routeArray.length){if(typeof hideLoading==="function")hideLoading();alert("배송지를 입력하세요");return}
+
+const select=el("assignTypeSelect")||el("assignType"),selectValue=select?.value.trim()||"auto";
+const driver=el("targetDriverId"),manualDriverId=driver?.value.trim()||"";
+let assignType="선착순배차",targetDriverId="";
+if(selectValue==="auto"||selectValue==="선착순배차"){
+    assignType="선착순배차";
+    targetDriverId="";
+}else if(selectValue==="지정배차|"){
+    assignType="지정배차";
+    targetDriverId="";
+}else{
+    const parts=selectValue.split("|");
+    assignType="지정배차";
+    targetDriverId=parts[0]||"";
+}
+
+let files=[];if(typeof getUploadFiles==="function")try{files=await getUploadFiles()}catch(e){files=[]}
+
+const result=await new Promise((resolve,reject)=>{
+google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).addCompositeOrder(productName,routeArray,files,assignType,targetDriverId)
+});
+
+if(typeof hideLoading==="function")hideLoading();
+
+if(!result){alert("오더 등록 실패");return}
+
+alert("오더 등록 완료!");
+if(p)p.value="";
+if(driver)driver.value="";
+if(select)select.value="auto";
+globalRouteArray=[];renderRouteChips();
+MASTER_UPLOAD_FILES=[];
+const fi=el("uploadFiles");if(fi)fi.value="";
+const pa=el("previewArea");if(pa)pa.innerHTML="";
+if(el("fileStatus"))el("fileStatus").innerText="선택된 파일 없음";
+forceRefreshBackground();
+}catch(err){
+if(typeof hideLoading==="function")hideLoading();
+console.error("SUBMIT ERROR:",err);alert("오더 등록 중 오류 발생");
+}
+}
+
+function syncOrdersBoard(){
+if(typeof window.runServer!=="function")return;
+runServer("getOrdersData")().then(data=>{
+try{
+if(!data)return;
+const orders=typeof data==="string"?JSON.parse(data):data;
+MASTER_ORDER_CACHE=orders;
+const cId=0,cStatus=7,cProd=3,newRejectAlerts=[];
+for(let i=1;i<orders.length;i++){
+const row=orders[i];if(!row)continue;
+const orderId=row[cId]||"ORDER-000",status=String(row[cStatus]||"미확인").trim(),old=previousOrderStatusMap[orderId];
+if(!isFirstLoad&&(status==="거절"||status==="거절됨")&&old!=="거절"&&old!=="거절됨")newRejectAlerts.push("["+orderId+"] "+(row[cProd]||"상품")+" 오더가 거절되었습니다!");
+previousOrderStatusMap[orderId]=status;
+}
+isFirstLoad=false;
+if(newRejectAlerts.length){
+const audio=el("alertSound");if(audio)audio.play().catch(()=>{});
+alert("🚨 [긴급] 오더 거절 발생!\n\n"+newRejectAlerts.join("\n"));
+}
+}catch(e){console.error("SYNC PARSE ERROR",e)}
+}).catch(e=>console.error("Orders Sync Fail:",e));
+}
+
+function updateOrderSummary(list){
+let total=0,ing=0,done=0;
+for(let i=1;i<list.length;i++){
+if(!list[i])continue;total++;
+const s=String(list[i][7]||"");
+if(s==="수락"||s==="배송중"||s==="진행중")ing++;
+if(s==="배송완료")done++;
+}
+if(el("sumOrder"))el("sumOrder").innerText=total;
+if(el("sumIng"))el("sumIng").innerText=ing;
+if(el("sumDone"))el("sumDone").innerText=done;
+}
+
+function forceRefreshBackground(){syncOrdersBoard()}
+
+function downloadOrderExcel(){
+const start=el("excelStartDate")?.value,end=el("excelEndDate")?.value;
+if(!start||!end){alert("조회할 시작일과 종료일을 모두 선택해주세요.");return}
+if(typeof showLoading==="function")showLoading("엑셀 파일 생성 중...");
+google.script.run.withSuccessHandler(function(result){
+if(typeof hideLoading==="function")hideLoading();
+if(typeof result==="string"&&result.startsWith("ERROR")){alert("서버 에러 발생: "+result);return}
+if(!result||!result.length){alert("해당 기간에 등록된 오더 내역이 없습니다.");return}
+let csv="\uFEFF오더ID,상품명,경로,담당기사이름,등록시간\r\n";
+result.forEach(o=>{
+const a=[o.id,o.productName,o.route,o.driverName,o.regTime].map(v=>`"${String(v||"").replace(/"/g,'""')}"`);
+csv+=a.join(",")+"\r\n";
+});
+const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"})),link=document.createElement("a");
+link.href=url;link.download="오더내역_"+start+"_to_"+end+".csv";document.body.appendChild(link);link.click();document.body.removeChild(link);
+alert("📊 총 "+result.length+"개의 오더 내역이 엑셀 파일(CSV)로 다운로드되었습니다.");
+}).withFailureHandler(function(err){
+if(typeof hideLoading==="function")hideLoading();console.error("통신 실패:",err);alert("❌ 통신 실패: "+(err?.message||err));
+}).fetchOrdersForExcel(start,end);
+}
+
+function downloadAllDriversExcel(event) {
+  const start=document.getElementById("excelStartDate").value;
+  const end=document.getElementById("excelEndDate").value;
+
+  if(!start||!end){
+    alert("조회할 시작일과 종료일을 선택해주세요.");
+    return;
+  }
+
+  if(start>end){
+    alert("시작일이 종료일보다 늦을 수 없습니다.");
+    return;
+  }
+
+  const btn=event&&event.target?event.target:null;
+
+  if(btn){
+    btn.disabled=true;
+    btn.textContent="⏳ 생성중...";
+  }
+
+  google.script.run
+    .withSuccessHandler(function(result){
+
+      if(btn){
+        btn.disabled=false;
+        btn.textContent="📥 전체 기사 Excel";
+      }
+
+      if(!result){
+        alert("Excel 생성 결과가 없습니다.");
+        return;
+      }
+
+      if(typeof result==="string"&&result.indexOf("ERROR:")===0){
+        alert(result);
+        return;
+      }
+
+      if(!result.base64||!result.fileName){
+        alert("Excel 데이터가 올바르지 않습니다.");
+        return;
+      }
+
+      if(window.AndroidBridge&&typeof AndroidBridge.downloadExcel==="function"){
+        AndroidBridge.downloadExcel(
+          result.fileName,
+          result.base64,
+          result.mimeType||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        return;
+      }
+
+      try{
+        const binary=atob(result.base64);
+        const bytes=new Uint8Array(binary.length);
+
+        for(let i=0;i<binary.length;i++){
+          bytes[i]=binary.charCodeAt(i);
+        }
+
+        const blob=new Blob([bytes],{
+          type:result.mimeType||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
+
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a");
+
+        a.href=url;
+        a.download=result.fileName;
+
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        setTimeout(function(){
+          URL.revokeObjectURL(url);
+        },1000);
+
+      }catch(downloadError){
+        alert("Excel 다운로드 중 오류가 발생했습니다.");
+      }
+
+    })
+    .withFailureHandler(function(err){
+
+      if(btn){
+        btn.disabled=false;
+        btn.textContent="📥 전체 기사 Excel";
+      }
+
+      alert(
+        "Excel 다운로드 중 오류가 발생했습니다.\n"+
+        (err&&err.message?err.message:err)
+      );
+
+    })
+    .createAllDriversOrdersExcel(start,end);
+}
+
+function escapeOrderHTML(v){return safe(v)}
+
+document.addEventListener("DOMContentLoaded",function(){
+const s=el("searchKeyword");
+if(s)s.addEventListener("input",function(){
+const k=this.value.toLowerCase().trim();
+document.querySelectorAll(".order-card").forEach(c=>c.style.display=c.textContent.toLowerCase().includes(k)?"block":"none");
+});
+const today=new Date().toISOString().split("T")[0];
+if(el("excelStartDate")&&!el("excelStartDate").value)el("excelStartDate").value=today;
+if(el("excelEndDate")&&!el("excelEndDate").value)el("excelEndDate").value=today;
+});
+
+var ORDER_REFRESH_TIMER=setInterval(syncOrdersBoard,10000);
+window.submitOrderLogic=submitCompositeOrder;
+window.MasterOrder={refresh:syncOrdersBoard,reload:syncOrdersBoard,register:submitCompositeOrder};
+setTimeout(syncOrdersBoard,800);
+
+var MASTER_HISTORY_FILTER="today";
+
+function getMasterHistoryDriverName(driverId){
+    var id=String(driverId||"").trim();
+    if(!id)return"";
+    var list=window.MASTER_DRIVER_CACHE||window.DRIVER_CACHE||[];
+    for(var i=0;i<list.length;i++){
+        var d=list[i]||{};
+        var did=String(d.id!==undefined?d.id:(d.driverId!==undefined?d.driverId:d[0]||"")).trim();
+        if(did===id)return String(d.name!==undefined?d.name:(d.driverName!==undefined?d.driverName:d[1]||"")).trim();
+    }
+    return"";
+}
+
+function masterHistoryDateKey(value){
+    if(!value)return"";
+    var s=String(value).trim();
+    if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.substring(0,10);
+    var d=value instanceof Date?new Date(value):new Date(s);
+    if(isNaN(d.getTime()))return"";
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+
+function masterHistoryDateText(value){
+    if(!value)return"-";
+    var s=String(value).trim();
+    if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.substring(0,16);
+    var d=value instanceof Date?new Date(value):new Date(s);
+    if(isNaN(d.getTime()))return s;
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+}
+
+function openMasterHistoryModal(){
+    var modal=document.getElementById("masterHistoryModal");
+    if(modal)modal.style.display="block";
+    MASTER_HISTORY_FILTER="today";
+    var dateInput=document.getElementById("masterHistoryDateInput");
+    if(dateInput)dateInput.value="";
+    var searchInput=document.getElementById("masterHistorySearchInput");
+    if(searchInput)searchInput.value="";
+    setMasterHistoryFilter("today");
+    refreshMasterHistoryData();
+}
+
+function closeMasterHistoryModal(){
+    var modal=document.getElementById("masterHistoryModal");
+    if(modal)modal.style.display="none";
+}
+
+function setMasterHistoryFilter(mode){
+    MASTER_HISTORY_FILTER=mode||"today";
+    var todayBtn=document.getElementById("masterHistoryTodayBtn");
+    var yesterdayBtn=document.getElementById("masterHistoryYesterdayBtn");
+    var allBtn=document.getElementById("masterHistoryAllBtn");
+    var dateInput=document.getElementById("masterHistoryDateInput");
+    var activeStyle="background:#2563eb;color:#fff;border:0;padding:9px 13px;border-radius:6px;font-weight:bold;cursor:pointer";
+    var inactiveStyle="background:#475569;color:#fff;border:0;padding:9px 13px;border-radius:6px;font-weight:bold;cursor:pointer";
+    if(todayBtn)todayBtn.style.cssText=MASTER_HISTORY_FILTER==="today"?activeStyle:inactiveStyle;
+    if(yesterdayBtn)yesterdayBtn.style.cssText=MASTER_HISTORY_FILTER==="yesterday"?activeStyle:inactiveStyle;
+    if(allBtn)allBtn.style.cssText=MASTER_HISTORY_FILTER==="all"?activeStyle:inactiveStyle;
+    if(dateInput&&MASTER_HISTORY_FILTER==="date"){
+        todayBtn&&(todayBtn.style.cssText=inactiveStyle);
+        yesterdayBtn&&(yesterdayBtn.style.cssText=inactiveStyle);
+        allBtn&&(allBtn.style.cssText=inactiveStyle);
+    }
+    renderMasterHistory();
+}
+
+function refreshMasterHistoryData(){
+    if(typeof runServer==="function"){
+        try{
+            runServer("getOrdersData")().then(function(result){
+                try{
+                    MASTER_ORDER_CACHE=typeof result==="string"?JSON.parse(result):result;
+                }catch(e){
+                    MASTER_ORDER_CACHE=[];
+                }
+                renderMasterHistory();
+            }).catch(function(){
+                renderMasterHistory();
+            });
+            return;
+        }catch(e){}
+    }
+    renderMasterHistory();
+}
+
+function renderMasterHistory(){
+    var container=document.getElementById("masterHistoryListContainer");
+    var countEl=document.getElementById("masterHistoryCount");
+    if(!container)return;
+
+    var orders=Array.isArray(MASTER_ORDER_CACHE)?MASTER_ORDER_CACHE:[];
+    var keyword=String((document.getElementById("masterHistorySearchInput")||{}).value||"").trim().toLowerCase();
+
+    var now=new Date();
+    var todayKey=masterHistoryDateKey(now);
+    var yesterday=new Date(now.getTime()-86400000);
+    var yesterdayKey=masterHistoryDateKey(yesterday);
+    var selectedDate=String((document.getElementById("masterHistoryDateInput")||{}).value||"").trim();
+
+    var result=[];
+
+    for(var i=0;i<orders.length;i++){
+        var row=orders[i];
+        if(!Array.isArray(row))continue;
+
+        var status=String(row[7]||"").trim();
+        if(status!=="배송완료")continue;
+
+        var orderId=String(row[0]||"").trim();
+        var product=String(row[3]||"").trim();
+        var route=String(row[4]||"").trim();
+        var driverId=String(row[6]||"").trim();
+        var driverName=getMasterHistoryDriverName(driverId);
+        var completedTime=row[13]||"";
+        var completedKey=masterHistoryDateKey(completedTime);
+
+        if(MASTER_HISTORY_FILTER==="today"&&completedKey!==todayKey)continue;
+        if(MASTER_HISTORY_FILTER==="yesterday"&&completedKey!==yesterdayKey)continue;
+        if(MASTER_HISTORY_FILTER==="date"&&completedKey!==selectedDate)continue;
+
+        var searchText=(orderId+" "+product+" "+route+" "+driverId+" "+driverName).toLowerCase();
+        if(keyword&&searchText.indexOf(keyword)===-1)continue;
+
+        result.push({
+            orderId:orderId,
+            product:product,
+            route:route,
+            driverId:driverId,
+            driverName:driverName,
+            completedTime:completedTime
+        });
+    }
+
+    result.sort(function(a,b){
+        var da=new Date(a.completedTime).getTime();
+        var db=new Date(b.completedTime).getTime();
+        if(isNaN(da))da=0;
+        if(isNaN(db))db=0;
+        return db-da;
+    });
+
+    if(countEl)countEl.textContent="🔎 검색 결과 총 "+result.length+"건";
+
+    if(result.length===0){
+        container.innerHTML='<div style="padding:35px 10px;text-align:center;color:#94a3b8;background:#0f172a;border-radius:10px">📭 배송완료 내역이 없습니다.</div>';
+        return;
+    }
+
+    var html="";
+
+    for(var j=0;j<result.length;j++){
+        var item=result[j];
+
+        html+='<div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:13px;margin-bottom:9px">';
+        html+='<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">';
+        html+='<div style="font-weight:800;color:#f8fafc">📦 '+escapeOrderHTML(item.orderId)+'</div>';
+        html+='<div style="font-size:13px;color:#86efac">✅ '+escapeOrderHTML(masterHistoryDateText(item.completedTime))+'</div>';
+        html+='</div>';
+        html+='<div style="margin-top:8px;color:#e2e8f0;font-weight:bold">🌸 '+escapeOrderHTML(item.product||"상품정보 없음")+'</div>';
+        html+='<div style="margin-top:6px;color:#cbd5e1;line-height:1.5">📍 '+escapeOrderHTML(item.route||"경로 정보 없음")+'</div>';
+        html+='<div style="margin-top:8px;color:#94a3b8;font-size:13px">🚚 기사: '+escapeOrderHTML(item.driverName||"기사명 없음")+' '+(item.driverId?"("+escapeOrderHTML(item.driverId)+")":"")+'</div>';
+        html+='</div>';
+    }
+
+    container.innerHTML=html;
+}
+
+document.addEventListener("keydown",function(e){
+    var modal=document.getElementById("masterHistoryModal");
+    if(e.key==="Escape"&&modal&&modal.style.display!=="none")closeMasterHistoryModal();
+});
+
+console.log("MASTER ORDER ENGINE STABLE V7.8 COMPLETE");
+</script>
+
+<!-- =========================================================
+     SOUND / SUB MASTER
+========================================================= -->
+<script>
+function openSoundSettings(){
+const m=el("soundSettingsModal");if(!m)return;
+m.style.display="flex";
+if(window.AndroidBridge&&typeof AndroidBridge.getSelectedAlert==="function"){
+const s=AndroidBridge.getSelectedAlert();if(s&&el("soundSelectDropdown"))el("soundSelectDropdown").value=s;
+}
+}
+function closeSoundSettings(){const m=el("soundSettingsModal");if(m)m.style.display="none"}
+function saveSoundSettings(){
+const s=el("soundSelectDropdown")?.value;if(!s)return;
+if(window.AndroidBridge&&typeof AndroidBridge.setSelectedAlert==="function"){AndroidBridge.setSelectedAlert(s);alert("🔔 알림음 설정이 저장되었습니다.")}else alert("⚠️ Android 앱에서만 알림음 설정을 저장할 수 있습니다.");
+closeSoundSettings();
+}
+function testPlayAlertSound() {
+    const selectObj = document.getElementById('soundSelectDropdown');
+    if (!selectObj) return;
+
+    const selectedSound = selectObj.value;
+    if (!selectedSound) return;
+
+    if (!window.AndroidBridge) return;
+    if (typeof window.AndroidBridge.playWavVoice !== 'function') return;
+
+    window.AndroidBridge.playWavVoice(selectedSound);
+}
+
+function getAdminToken(){return window.ADMIN_TOKEN||localStorage.getItem("ADMIN_SESSION_TOKEN")||""}
+
+function openSubMasterManager(){
+if(String(window.ADMIN_ROLE||"").toUpperCase()!=="MASTER"){alert("MASTER 권한이 필요합니다.");return}
+const m=el("subMasterModal");if(m)m.style.display="block";loadSubMasterList();
+}
+function closeSubMasterManager(){const m=el("subMasterModal");if(m)m.style.display="none"}
+
+function loadSubMasterList(){
+const box=el("subMasterList");if(box)box.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px">부마스터 정보를 불러오는 중...</div>';
+google.script.run.withSuccessHandler(function(res){
+if(!res||!res.success){if(box)box.innerHTML='<div style="padding:15px;color:#fca5a5;text-align:center">'+(res?.message||"조회 실패")+"</div>";return}
+const list=res.list||[];
+if(!list.length){if(box)box.innerHTML='<div style="padding:20px;text-align:center;color:#94a3b8">등록된 부마스터가 없습니다.</div>';return}
+box.innerHTML=list.map(item=>{
+const active=item.status==="사용";
+return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid #334155;background:#0f172a;border-radius:9px;margin-bottom:8px">
+<div><div style="font-weight:800;color:#fff">👤 ${safe(item.name)}</div><div style="font-size:12px;color:#94a3b8;margin-top:3px">ID: ${safe(item.id)}</div></div>
+<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+<span style="font-size:11px;padding:4px 7px;border-radius:5px;background:${active?"#064e3b":"#450a0a"};color:${active?"#6ee7b7":"#fca5a5"}">${safe(item.status)}</span>
+<button type="button" onclick="toggleSubMasterStatus('${encodeURIComponent(item.id)}','${active?"중지":"사용"}')" style="border:1px solid #475569;background:#1e293b;color:#fff;padding:6px 8px;border-radius:6px;cursor:pointer">${active?"사용중지":"사용재개"}</button>
+<button type="button" onclick="resetSubMasterPassword('${encodeURIComponent(item.id)}')" style="border:1px solid #475569;background:#1e293b;color:#fff;padding:6px 8px;border-radius:6px;cursor:pointer">🔑 비밀번호</button>
+</div></div>`;
+}).join("");
+}).withFailureHandler(err=>{if(box)box.innerHTML='<div style="padding:15px;color:#fca5a5;text-align:center">서버 오류: '+safe(err?.message||err)+"</div>"}).getSubMasterList(getAdminToken());
+}
+
+function createSubMasterAccount(){
+const id=el("subMasterNewId")?.value.trim()||"",name=el("subMasterNewName")?.value.trim()||"",pw=el("subMasterNewPassword")?.value||"",pw2=el("subMasterNewPassword2")?.value||"";
+if(!id||!name||!pw||!pw2){alert("모든 항목을 입력해주세요.");return}
+if(pw!==pw2){alert("비밀번호가 일치하지 않습니다.");return}
+if(pw.length<4){alert("비밀번호는 4자리 이상 입력해주세요.");return}
+if(!confirm("부마스터 계정을 생성하시겠습니까?\n\nID: "+id+"\n이름: "+name))return;
+google.script.run.withSuccessHandler(function(res){
+if(!res||!res.success){alert(res?.message||"부마스터 생성 실패");return}
+alert("✅ 부마스터 계정이 생성되었습니다.\n\nID: "+res.id+"\n이름: "+res.name);
+["subMasterNewId","subMasterNewName","subMasterNewPassword","subMasterNewPassword2"].forEach(i=>{if(el(i))el(i).value=""});
+loadSubMasterList();
+}).withFailureHandler(err=>alert("서버 오류: "+(err?.message||err))).createSubMaster(getAdminToken(),id,name,pw);
+}
+
+function toggleSubMasterStatus(encodedId,status){
+const id=decodeURIComponent(encodedId);if(!confirm(id+" 계정을 '"+status+"' 상태로 변경하시겠습니까?"))return;
+google.script.run.withSuccessHandler(res=>{if(!res||!res.success){alert(res?.message||"상태 변경 실패");return}loadSubMasterList()}).withFailureHandler(err=>alert("서버 오류: "+(err?.message||err))).updateSubMasterStatus(getAdminToken(),id,status);
+}
+
+function resetSubMasterPassword(encodedId){
+const id=decodeURIComponent(encodedId);let pw=prompt("새 비밀번호를 입력하세요.\n(4자리 이상)");
+if(pw===null)return;pw=String(pw).trim();if(pw.length<4){alert("비밀번호는 4자리 이상 입력해주세요.");return}
+if(!confirm(id+" 계정의 비밀번호를 변경하시겠습니까?"))return;
+google.script.run.withSuccessHandler(res=>alert(res?.success?"✅ 비밀번호가 변경되었습니다.":(res?.message||"비밀번호 변경 실패"))).withFailureHandler(err=>alert("서버 오류: "+(err?.message||err))).resetSubMasterPassword(getAdminToken(),id,pw);
+}
+
+function adminLogout(){
+const token=getAdminToken();
+
+console.log("=================================");
+    console.log("🚪 MASTER LOGOUT CLICK");
+    console.log("TOKEN =", token);
+    console.log("TOKEN LENGTH =", String(token||"").length);
+    console.log("=================================");
+
+if(!confirm("로그아웃 하시겠습니까?"))return;
+const clear=()=>{
+localStorage.removeItem("ADMIN_SESSION_TOKEN");localStorage.removeItem("ADMIN_ID");localStorage.removeItem("ADMIN_NAME");localStorage.removeItem("ADMIN_ROLE");
+window.top.location.href=window.WEB_APP_URL||location.href;
+};
+google.script.run.withSuccessHandler(clear).withFailureHandler(clear).logoutAdmin(token);
+}
+</script>
+
+<!-- =========================================================
+     SUB MASTER INITIALIZE
+========================================================= -->
+<script>
+document.addEventListener("DOMContentLoaded",function(){
+console.log("SUB MASTER ULTIMATE START");
+if(typeof initSubMaster==="function")initSubMaster();
+else if(typeof refreshOrderDashboard==="function")refreshOrderDashboard();
+loadMapIframe();
+console.log("MASTER INIT COMPLETE");
+});
+</script>
+
+<div id="masterHistoryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:1000001;padding:20px;box-sizing:border-box;overflow:auto">
+<div style="width:100%;max-width:850px;margin:20px auto;background:#1e293b;border:1px solid #475569;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;color:#fff">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:15px 18px;background:#0f172a;border-bottom:1px solid #334155">
+<div style="font-size:18px;font-weight:800">📜 배송완료 내역 조회</div>
+<button type="button" onclick="closeMasterHistoryModal()" style="border:0;background:transparent;color:#94a3b8;font-size:28px;cursor:pointer">×</button>
+</div>
+<div style="padding:16px">
+<div style="display:flex;gap:7px;margin-bottom:10px">
+<button type="button" id="masterHistoryTodayBtn" onclick="setMasterHistoryFilter('today')" style="background:#2563eb;color:#fff;border:0;padding:9px 13px;border-radius:6px;font-weight:bold;cursor:pointer">오늘</button>
+<button type="button" id="masterHistoryYesterdayBtn" onclick="setMasterHistoryFilter('yesterday')" style="background:#475569;color:#fff;border:0;padding:9px 13px;border-radius:6px;font-weight:bold;cursor:pointer">어제</button>
+<button type="button" id="masterHistoryAllBtn" onclick="setMasterHistoryFilter('all')" style="background:#475569;color:#fff;border:0;padding:9px 13px;border-radius:6px;font-weight:bold;cursor:pointer">전체</button>
+</div>
+<div style="margin-bottom:10px">
+<input type="date" id="masterHistoryDateInput" onchange="setMasterHistoryFilter('date')" style="width:100%;box-sizing:border-box;padding:9px;border-radius:6px;border:1px solid #64748b;background:#0f172a;color:#fff">
+</div>
+<div style="display:flex;gap:8px;align-items:center">
+<input type="text" id="masterHistorySearchInput" placeholder="주문번호 / 경로 / 상품명 / 기사이름 / 기사ID 검색..." oninput="renderMasterHistory()" style="width:100%;padding:10px;border-radius:7px;border:1px solid #64748b;background:#0f172a;color:#fff;box-sizing:border-box">
+</div>
+<div id="masterHistoryCount" style="padding:12px 2px;color:#cbd5e1;font-weight:bold">🔎 검색 결과 총 0건</div>
+<div id="masterHistoryListContainer"></div>
+</div>
+</div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,405 @@
+//==================================================
+// MasterMapJS
+// Flower Delivery System
+// Ultimate v6.9
+// Map Control Engine
+//==================================================
+
+
+console.log(
+    "MASTER MAP ENGINE ULTIMATE v6 READY"
+);
+
+
+
+
+//==================================================
+// 지도 iframe 로딩
+//==================================================
+
+function initMasterMap(){
+
+
+    const frame =
+
+        document.getElementById(
+            "mapFrame"
+        );
+
+
+
+    if(!frame){
+
+        console.warn(
+            "mapFrame 없음"
+        );
+
+        return;
+
+    }
+
+
+
+
+    let url =
+        window.WEB_APP_URL;
+
+
+
+    if(!url){
+
+        console.error(
+            "WEB_APP_URL 없음"
+        );
+
+        return;
+
+    }
+
+
+
+    url +=
+
+        "?page=map";
+
+
+
+
+    frame.src =
+        url;
+
+
+
+    console.log(
+        "MAP LOAD:",
+        url
+    );
+
+
+
+}
+
+
+
+
+
+
+
+//==================================================
+// 지도 새로고침
+//==================================================
+
+function refreshMap(){
+
+
+    const frame =
+
+        document.getElementById(
+            "mapFrame"
+        );
+
+
+
+    if(!frame){
+
+        return;
+
+    }
+
+
+
+    frame.src =
+        frame.src;
+
+
+
+}
+
+//==================================================
+// iframe 지도 포커싱 (URL 파라미터 연동 방식)
+//==================================================
+function focusMap(lat, lng) {
+    if (!lat || !lng || Number(lat) === 0 || Number(lng) === 0) {
+        console.warn("유효하지 않은 GPS 좌표입니다:", lat, lng);
+        return;
+    }
+
+    const frame = document.getElementById("mapFrame");
+    if (!frame) return;
+
+    let baseUrl = window.WEB_APP_URL || frame.src.split("?")[0];
+    
+    // 💡 새로운 좌표를 포함한 URL로 갱신 (지도가 해당 좌표를 품고 생성됨)
+    frame.src = baseUrl + "?page=map&lat=" + lat + "&lng=" + lng;
+    console.log("지도 포커스 위치 이동 갱신:", lat, lng);
+}
+
+//==================================================
+// 기사 위치 데이터
+//==================================================
+
+function loadDriverLocation(){
+
+    showLoading(
+        "기사 위치를 불러오는 중..."
+    );
+
+    runServer()
+
+    .getDriversLocationData()
+
+    .then(function(data){
+
+        hideLoading();
+
+        try{
+
+            const drivers =
+                JSON.parse(data);
+
+            updateMapDrivers(
+                drivers
+            );
+
+        }
+
+        catch(err){
+
+            console.error(
+                "MAP GPS ERROR",
+                err
+            );
+
+            showError(
+                "기사 위치 데이터를 분석하지 못했습니다."
+            );
+
+        }
+
+    })
+
+    .catch(function(err){
+
+        hideLoading();
+
+        console.error(err);
+
+        showError(
+
+            err && err.message ?
+
+            err.message :
+
+            "기사 위치를 불러오지 못했습니다."
+
+        );
+
+    });
+
+}
+
+//==================================================
+// 지도 GPS 전달
+//==================================================
+
+function updateMapDrivers(drivers){
+
+
+    const frame =
+
+        document.getElementById(
+            "mapFrame"
+        );
+
+
+
+    if(
+
+        !frame ||
+
+        !frame.contentWindow
+
+    ){
+
+        return;
+
+    }
+
+
+
+    frame.contentWindow.postMessage(
+
+        {
+
+            type:
+            "DRIVER_UPDATE",
+
+            data:
+            drivers
+
+
+        },
+
+        "*"
+
+    );
+
+
+}
+
+
+
+
+
+
+
+
+
+//==================================================
+// 지도 자동 갱신
+//==================================================
+
+let mapRefreshTimer = null;
+
+
+
+function startMapAutoRefresh(){
+
+
+
+    if(mapRefreshTimer){
+
+        clearInterval(
+            mapRefreshTimer
+        );
+
+    }
+
+
+
+    mapRefreshTimer =
+
+    setInterval(function(){
+
+
+        loadDriverLocation();
+
+
+
+    },10000);
+
+
+
+}
+
+
+
+
+
+
+
+
+
+//==================================================
+// iframe 로딩 완료
+//==================================================
+
+function mapFrameReady(){
+
+
+    console.log(
+        "MAP FRAME READY"
+    );
+
+
+    loadDriverLocation();
+
+
+}
+
+
+
+
+
+
+
+
+//==================================================
+// iframe 이벤트
+//==================================================
+
+window.addEventListener(
+
+    "message",
+
+    function(event){
+
+
+
+        if(
+            !event.data
+        ){
+
+            return;
+
+        }
+
+
+
+        if(
+            event.data.type
+            ===
+            "MAP_READY"
+        ){
+
+
+            mapFrameReady();
+
+
+        }
+
+
+
+    }
+
+);
+
+
+
+
+
+
+
+
+//==================================================
+// Map Engine Init
+//==================================================
+
+function initMapEngine(){
+
+
+    console.log(
+        "MAP ENGINE INIT"
+    );
+
+
+
+    initMasterMap();
+
+
+
+    startMapAutoRefresh();
+
+
+
+}
+
+
+
+
+
+
+
+console.log(
+    "MASTER MAP READY"
+);

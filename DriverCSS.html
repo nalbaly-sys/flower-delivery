@@ -1,0 +1,363 @@
+<style>
+/* ===================================================
+   Driver CSS Engine (Light & Dark Mode Optimized)
+===================================================*/
+
+/* 1. Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ===================================================
+   2. 라이트 모드 (기본값)
+===================================================*/
+body {
+    background-color: #eef2f5 !important;
+    color: #212529 !important;
+}
+
+.profile-card, .empty-box, .empty-order {
+    background: #ffffff !important;
+    border-radius: 12px;
+    border: 1px solid #dcdcdc;
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.order-card { 
+    background: #ffffff !important;
+    border-radius: 18px !important;
+    padding: 15px !important; 
+    margin-bottom: 22px !important; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.08) !important; 
+    border: 1px solid #dcdcdc !important;
+    overflow: hidden;
+    transition: all 0.25s ease;
+    animation: fadeUp 0.35s ease;
+    color: #212529 !important;
+}
+
+.order-card:hover {
+    border-color: #007bff !important;
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.12) !important;
+}
+
+.profile-title, .section-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #007bff !important;
+    margin-bottom: 12px;
+}
+
+.profile-info, .card-body {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #333333 !important;
+}
+
+.profile-info b, .profile-info span {
+    color: #111111 !important;
+}
+
+/* ===================================================
+   3. 다크 모드 (body.dark-mode 적용 시)
+===================================================*/
+body.dark-mode {
+    background-color: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+body.dark-mode .profile-card,
+body.dark-mode .empty-box,
+body.dark-mode .empty-order {
+    background-color: #1e1e1e !important;
+    border-color: #333333 !important;
+    color: #e0e0e0 !important;
+}
+
+body.dark-mode .order-card {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #f8fafc !important;
+}
+
+body.dark-mode .order-card:hover {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.35) !important;
+}
+
+body.dark-mode .profile-title,
+body.dark-mode .section-title,
+body.dark-mode .card-id {
+    color: #64b5f6 !important;
+}
+
+body.dark-mode .profile-info,
+body.dark-mode .route-info,
+body.dark-mode .card-body {
+    background-color: transparent !important;
+    color: #ffffff !important;
+}
+
+body.dark-mode .route-item {
+    background-color: #2a2a2a !important;
+    border-color: #444444 !important;
+}
+
+body.dark-mode .route-text,
+body.dark-mode .profile-info b {
+    color: #ffffff !important;
+}
+
+/* ===================================================
+   4. 공통 컴포넌트 (버튼, 뱃지, 애니메이션 등)
+===================================================*/
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rejectBlink {
+    0% { border-color: #ef4444; box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+    50% { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.7); }
+    100% { border-color: #ef4444; box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.order-card-reject-alert {
+    animation: rejectBlink 1.5s infinite;
+    border: 2px solid #ef4444 !important;
+}
+
+.driver-app, .app-container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+    padding-bottom: 80px;
+    position: relative;
+}
+
+.profile-status {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+}
+.status-active { background-color: #d4edda !important; color: #155724 !important; }
+.status-inactive { background-color: #f8d7da !important; color: #721c24 !important; }
+
+.btn-group, .dispatch-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.btn, .btn-accept, .btn-reject, .btn-action {
+    flex: 1;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff !important;
+    transition: .2s;
+    text-align: center;
+}
+
+.btn:active { transform: scale(.98); }
+
+.btn-work, .btn-accept, .btn-complete { background-color: #28a745 !important; }
+.btn-leave, .btn-reject { background-color: #dc3545 !important; }
+.btn-action { width: 100%; margin-top: 12px; background-color: #007bff !important; }
+
+.card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(0,0,0,0.06);
+}
+body.dark-mode .card-head { border-bottom-color: #334155; }
+
+.card-id { font-weight: bold; font-size: 16px; }
+
+.route-info {
+    margin: 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.route-container {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.route-item {
+    background-color: #f8f9fa !important;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.route-text {
+    font-weight: bold;
+    margin-bottom: 8px;
+    display: block;
+    font-size: 14px;
+}
+
+/* ===================================================
+   5. 토글 버튼 스타일 (라이트/다크모드 대응)
+===================================================*/
+.status-toggle-box { display: flex; gap: 6px; }
+.btn-toggle {
+    flex: 1;
+    padding: 9px;
+    font-size: 13px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    cursor: pointer;
+    background-color: #e9ecef !important;
+    color: #495057 !important;
+    font-weight: 500;
+}
+.btn-toggle.active-미픽업, .btn-toggle.active-waiting { background-color: #ffc107 !important; color: #212529 !important; border-color: #ffc107; font-weight: bold; }
+.btn-toggle.active-픽업, .btn-toggle.active-pickup { background-color: #17a2b8 !important; color: white !important; border-color: #17a2b8; font-weight: bold; }
+.btn-toggle.active-배송완료, .btn-toggle.active-complete { background-color: #28a745 !important; color: white !important; border-color: #28a745; font-weight: bold; }
+
+body.dark-mode .btn-toggle {
+    background-color: #333333 !important;
+    color: #b0b0b0 !important;
+    border-color: #555555 !important;
+}
+body.dark-mode .btn-toggle.active-미픽업, body.dark-mode .btn-toggle.active-waiting { background-color: #f59e0b !important; color: #000000 !important; border-color: #d97706 !important; }
+body.dark-mode .btn-toggle.active-픽업, body.dark-mode .btn-toggle.active-pickup { background-color: #06b6d4 !important; color: #ffffff !important; border-color: #0891b2 !important; }
+body.dark-mode .btn-toggle.active-배송완료, body.dark-mode .btn-toggle.active-complete { background-color: #10b981 !important; color: #ffffff !important; border-color: #059669 !important; }
+
+/* ===================================================
+   6. 오더 카드 우측 상단 상태 뱃지 (라이트/다크 모드)
+===================================================*/
+.card-status, .status-badge {
+    display: inline-block !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    text-align: center !important;
+}
+
+/* 라이트 모드 뱃지 색상 */
+.card-status.status-미확인, .status-badge.waiting {
+    background-color: #fff3cd !important;
+    color: #856404 !important;
+    border: 1px solid #ffeeba !important;
+}
+
+.card-status.status-수락, .status-badge.active {
+    background-color: #cce5ff !important;
+    color: #004085 !important;
+    border: 1px solid #b8daff !important;
+}
+
+.card-status.status-배송완료, .status-badge.complete {
+    background-color: #d4edda !important;
+    color: #155724 !important;
+    border: 1px solid #c3e6cb !important;
+}
+
+/* 다크 모드 뱃지 색상 */
+body.dark-mode .card-status.status-미확인, 
+body.dark-mode .status-badge.waiting {
+    background-color: #78350f !important;
+    color: #fde68a !important;
+    border: 1px solid #b45309 !important;
+}
+
+body.dark-mode .card-status.status-수락, 
+body.dark-mode .status-badge.active {
+    background-color: #0e7490 !important;
+    color: #cffafe !important;
+    border: 1px solid #155e75 !important;
+}
+
+body.dark-mode .card-status.status-배송완료, 
+body.dark-mode .status-badge.complete {
+    background-color: #065f46 !important;
+    color: #a7f3d0 !important;
+    border: 1px solid #047857 !important;
+}
+
+/* ===================================================
+   7. 테마 변경 버튼 및 스크롤바
+===================================================*/
+.theme-toggle-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #e0e0e0;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 10;
+}
+body.dark-mode .theme-toggle-btn { background: #333333; color: #fff; }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+body.dark-mode ::-webkit-scrollbar-thumb { background: #475569; }
+
+/* ===================================================
+   오더 상태별 전체 카드 색상
+===================================================*/
+.order-card.order-card-dispatch-waiting{background:#fff4e6 !important;border:2px solid #f59e0b !important;color:#7c2d12 !important;}
+.order-card.order-card-unconfirmed{background:#fff8d6 !important;border:2px solid #eab308 !important;color:#713f12 !important;}
+.order-card.order-card-accepted{background:#e8f1ff !important;border:2px solid #3b82f6 !important;color:#1e3a8a !important;}
+.order-card.order-card-rejected{background:#ffe8e8 !important;border:2px solid #ef4444 !important;color:#7f1d1d !important;}
+.order-card.order-card-completed{background:#e8f7ed !important;border:2px solid #22c55e !important;color:#14532d !important;}
+
+body.dark-mode .order-card.order-card-dispatch-waiting{background:#4a2b08 !important;border-color:#f59e0b !important;color:#fff7ed !important;}
+body.dark-mode .order-card.order-card-unconfirmed{background:#4a3a05 !important;border-color:#eab308 !important;color:#fef3c7 !important;}
+body.dark-mode .order-card.order-card-accepted{background:#102f55 !important;border-color:#3b82f6 !important;color:#dbeafe !important;}
+body.dark-mode .order-card.order-card-rejected{background:#4a1111 !important;border-color:#ef4444 !important;color:#fee2e2 !important;}
+body.dark-mode .order-card.order-card-completed{background:#0d3b2a !important;border-color:#22c55e !important;color:#dcfce7 !important;}
+
+.order-card.order-card-dispatch-waiting .card-id,.order-card.order-card-unconfirmed .card-id,.order-card.order-card-accepted .card-id,.order-card.order-card-rejected .card-id,.order-card.order-card-completed .card-id{color:inherit !important;}
+
+body.dark-mode .order-card.order-card-dispatch-waiting .card-id,body.dark-mode .order-card.order-card-unconfirmed .card-id,body.dark-mode .order-card.order-card-accepted .card-id,body.dark-mode .order-card.order-card-rejected .card-id,body.dark-mode .order-card.order-card-completed .card-id{color:inherit !important;}
+
+.order-card .card-head div div[style*="color:#94a3b8"]{color:inherit !important;opacity:.8;}
+
+.card-status.status-거절{background:#f8d7da !important;color:#721c24 !important;border:1px solid #f5c6cb !important;}
+body.dark-mode .card-status.status-거절{background:#7f1d1d !important;color:#fecaca !important;border:1px solid #991b1b !important;}
+
+</style>
