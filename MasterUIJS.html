@@ -1,0 +1,184 @@
+<script>
+console.log("MASTER UI ENGINE ULTIMATE v7.3 READY");
+
+function switchTab(tabId){
+    console.log("TAB SWITCH:",tabId);
+    var tabs=document.querySelectorAll(".tab-content");
+    var buttons=document.querySelectorAll(".tab-btn");
+    tabs.forEach(function(tab){tab.classList.remove("active");tab.style.display="none";});
+    buttons.forEach(function(btn){btn.classList.remove("active");});
+    var target=document.getElementById(tabId);
+    if(target){target.classList.add("active");target.style.display="block";}
+    var index=Number(String(tabId).replace("tab",""))-1;
+    if(buttons[index])buttons[index].classList.add("active");
+    if(tabId==="tab1"&&typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("TAB1 DRIVER REFRESH ERROR:",e);}}
+    if(tabId==="tab2"&&typeof refreshOrderDashboard==="function"){try{refreshOrderDashboard();}catch(e){console.error("TAB2 ORDER REFRESH ERROR:",e);}}
+    if(tabId==="tab3"){console.log("TAB3 신규 오더 배차");if(typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("TAB3 DRIVER REFRESH ERROR:",e);}}}
+}
+window.switchTab=switchTab;
+
+function initMaster(){
+    console.log("MASTER ULTIMATE v7.3 START");
+    switchTab("tab1");
+    if(typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("DRIVER INIT ERROR:",e);}}
+    setTimeout(function(){if(typeof initMapEngine==="function"){try{initMapEngine();}catch(e){console.error("MAP INIT ERROR:",e);}}},300);
+    if(typeof toggleDriverInput==="function")toggleDriverInput();
+    if(!window.masterPollInterval){
+        window.masterPollInterval=setInterval(function(){
+            var tab2=document.getElementById("tab2");
+            if(tab2&&tab2.classList.contains("active")&&typeof refreshOrderDashboard==="function"){
+                try{refreshOrderDashboard();}catch(e){console.error("ORDER POLLING ERROR:",e);}
+            }
+        },10000);
+    }
+    console.log("MASTER INIT COMPLETE");
+}
+
+document.addEventListener("DOMContentLoaded",function(){
+    console.log("MASTER UI DOM READY");
+    setTimeout(function(){if(typeof initMaster==="function")initMaster();},300);
+});
+
+function toggleDriverInput(){
+    var type=document.getElementById("assignTypeSelect");
+    var field=document.getElementById("driverIdField");
+    if(!type)return;
+    if(!field)return;
+    if(type.value==="선착순배차"||type.value==="auto"){
+        field.style.display="none";
+        var input=document.getElementById("targetDriverId");
+        if(input)input.value="";
+    }else{
+        field.style.display="block";
+    }
+}
+
+function setTargetDriver(driverId){
+    var input=document.getElementById("targetDriverId");
+    if(input)input.value=driverId;
+}
+
+function reloadMaster(){
+    if(typeof showLoading==="function")showLoading("새로고침 중...");
+    try{
+        if(typeof refreshMaster==="function")refreshMaster();
+    }catch(e){
+        console.error("RELOAD MASTER ERROR:",e);
+    }finally{
+        if(typeof hideLoading==="function")setTimeout(hideLoading,300);
+    }
+}
+
+function closeModal(id){
+    var modal=document.getElementById(id);
+    if(modal)modal.style.display="none";
+}
+
+window.addEventListener("resize",function(){
+    if(typeof resizeMap==="function")resizeMap();
+});
+
+function showLoading(message){
+    var layer=document.getElementById("loadingLayer");
+    var text=document.getElementById("loadingText");
+    if(text&&message)text.innerText=message;
+    if(layer)layer.style.display="flex";
+}
+
+function hideLoading(){
+    var layer=document.getElementById("loadingLayer");
+    if(layer)layer.style.display="none";
+}
+
+function syncDriversBoard(){
+    if(typeof google==="undefined"||!google.script||!google.script.run)return;
+    google.script.run.withSuccessHandler(function(resData){
+        try{
+            if(!resData)return;
+            var drivers=typeof resData==="string"?JSON.parse(resData):resData;
+            if(!Array.isArray(drivers))drivers=[];
+            window.MASTER_DRIVER_CACHE=drivers;
+            window.DRIVER_CACHE=drivers;
+            if(typeof renderDriverBoard==="function")renderDriverBoard(drivers);
+            if(typeof updateDriverSummary==="function")updateDriverSummary(drivers);
+            updateAllRedispatchDropdowns(drivers);
+            console.log("기사 목록 로드 완료:",drivers.length+"명");
+        }catch(err){
+            console.error("syncDriversBoard 파싱 에러:",err);
+        }
+    }).withFailureHandler(function(err){
+        console.error("기사 목록 통신 실패:",err);
+    }).getDriverList();
+}
+
+function updateAllRedispatchDropdowns(drivers){
+    if(!Array.isArray(drivers))drivers=window.MASTER_DRIVER_CACHE||window.DRIVER_CACHE||[];
+
+    var assignSelect=document.getElementById("assignTypeSelect");
+
+    if(assignSelect){
+        var currentValue=assignSelect.value;
+        var html='<option value="auto">⚡ 선착순 자동배차</option>';
+
+        drivers.forEach(function(d){
+            var id=d.id||d.driverId||"";
+            var name=d.name||d.driverName||"";
+            var status=d.status||"퇴근함";
+            if(!id)return;
+            html+='<option value="'+safe(String(id)+"|"+String(name))+'">🎯 지정배차 - '+safe(name)+' ('+safe(id)+') ['+safe(status)+']</option>';
+        });
+
+        assignSelect.innerHTML=html;
+
+        if(currentValue){
+            var exists=Array.from(assignSelect.options).some(function(o){return o.value===currentValue;});
+            assignSelect.value=exists?currentValue:"auto";
+        }else{
+            assignSelect.value="auto";
+        }
+
+        assignSelect.onchange=function(){
+            toggleDriverInput();
+        };
+    }
+
+    var redispatchHtml='<option value="" disabled selected>-- 기사 선택 후 재배차 --</option>';
+
+    drivers.forEach(function(d){
+        var id=d.id||d.driverId||"";
+        var name=d.name||d.driverName||"";
+        var status=d.status||"퇴근함";
+        if(!id)return;
+        redispatchHtml+='<option value="'+safe(String(id)+"|"+String(name))+'">'+safe(name)+' ('+safe(status)+')</option>';
+    });
+
+    document.querySelectorAll('[id^="redispatch-select-"]').forEach(function(selectEl){
+        var oldValue=selectEl.value;
+        selectEl.innerHTML=redispatchHtml;
+        if(oldValue){
+            var found=Array.from(selectEl.options).some(function(o){return o.value===oldValue;});
+            if(found)selectEl.value=oldValue;
+        }
+    });
+
+    console.log("기사 배정 목록 갱신 완료:",drivers.length+"명");
+}
+
+function forceRefresh(){
+    if(typeof reloadMaster==="function")reloadMaster();
+}
+
+function addNewRouteField(){
+    if(typeof window.addRouteFieldLogic==="function")window.addRouteFieldLogic();
+}
+
+function submitCompositeOrder(){
+    if(typeof window.submitOrderLogic==="function")window.submitOrderLogic();
+}
+
+window.forceRefresh=forceRefresh;
+window.addNewRouteField=addNewRouteField;
+window.submitCompositeOrder=submitCompositeOrder;
+
+console.log("MASTER UI ENGINE ULTIMATE v7.3 READY");
+</script>

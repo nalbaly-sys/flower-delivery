@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>꽃배달 배송기사 회원등록</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; background-color: #0f172a; color: #f8fafc; }
+    #header { background-color: #1e293b; color: white; padding: 18px; font-size: 18px; font-weight: bold; text-align: center; border-bottom: 4px solid #f43f5e; }
+    #header span { display: block; font-size: 11px; color: #94a3b8; font-weight: normal; margin-top: 4px; }
+    
+    .container { padding: 16px; max-width: 500px; margin: 0 auto; box-sizing: border-box; }
+    
+    .form-box { background: #1e293b; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #334155; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 14px; font-weight: bold; margin-bottom: 8px; color: #cbd5e1; }
+    
+    .input-text { width: 100%; padding: 12px; border: 1px solid #475569; background-color: #0f172a; color: white; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+    .input-text:focus { border-color: #f43f5e; outline: none; }
+    
+    .submit-btn { width: 100%; background-color: #f43f5e; color: white; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 10px; }
+    .submit-btn:hover { background-color: #e11d48; }
+    .submit-btn:disabled { background-color: #475569; color: #94a3b8; cursor: not-allowed; }
+
+    /* 결과 박스 스타일 */
+    #resultBox { display: none; margin-top: 20px; background-color: #0284c7; border: 1px solid #0369a1; padding: 16px; border-radius: 8px; text-align: center; }
+    .result-title { font-weight: bold; font-size: 18px; margin-bottom: 8px; color: white; }
+  </style>
+</head>
+<body>
+
+  <div id="header">
+    🚖 꽃배달 배송기사 시스템 <span>[기사 회원가입 페이지]</span>
+  </div>
+
+  <div class="container">
+    <div class="form-box" id="registerFormBox">
+      <div class="form-group">
+        <label>🆔 기사 고유 ID 입력 (영문 및 숫자 권장)</label>
+        <input type="text" id="driverIdInput" class="input-text" placeholder="예: driver05">
+      </div>
+      
+      <div class="form-group">
+        <label>👤 기사 성함 입력</label>
+        <input type="text" id="driverNameInput" class="input-text" placeholder="예: 홍길동">
+      </div>
+      
+      <div class="form-group">
+        <label>📱 연락처(전화번호)</label>
+        <input type="text" id="driverPhoneInput" class="input-text" placeholder="예: 010-1234-5678">
+      </div>
+
+      <div class="form-group">
+        <label>🔑 비밀번호 설정</label>
+        <input type="password" id="driverPasswordInput" class="input-text" placeholder="사용하실 비밀번호 입력">
+      </div>
+      
+      <button type="button" id="btnRegister" class="submit-btn" onclick="executeRegister()">🚀 기사 정보 등록하기</button>
+    </div>
+
+    <div id="resultBox">
+      <div class="result-title">✅ 회원가입 완료!</div>
+      <p style="font-size: 14px; margin: 0; color: #e0f2fe;">기사 등록이 성공적으로 완료되었습니다.<br>앱에 로그인하여 업무를 시작하세요.</p>
+    </div>
+  </div>
+
+  <script>
+    function executeRegister(){
+        const id = document.getElementById("driverIdInput").value.trim();
+        const name = document.getElementById("driverNameInput").value.trim();
+        const phone = document.getElementById("driverPhoneInput").value.trim();
+        const password = document.getElementById("driverPasswordInput").value.trim();
+
+        if(!id || !name || !phone || !password){
+            alert("모든 정보를 빠짐없이 입력해 주세요.");
+            return;
+        }
+
+        const btn = document.getElementById("btnRegister");
+        btn.disabled = true;
+        btn.innerText = "⏳ 시스템 등록 중...";
+
+        // 서버로 가입 정보 전송 (비밀번호는 I열에 저장되도록 서버 함수 연동)
+        runServer().registerDriver(id, name, phone, password)
+            .then(function(res){
+                if(res && res.success){
+                    document.getElementById("registerFormBox").style.display = "none";
+                    document.getElementById("resultBox").style.display = "block";
+                } else {
+                    alert(res.msg || "등록 실패");
+                    btn.disabled = false;
+                    btn.innerText = "🚀 기사 정보 등록하기";
+                }
+            })
+            .catch(function(err){
+                alert(err.message || String(err));
+                btn.disabled = false;
+                btn.innerText = "🚀 기사 정보 등록하기";
+            });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+//==================================================
+// MasterRedispatchJS
+// Flower Delivery System
+// Ultimate v7.2
+// Redispatch Engine
+//==================================================
+
+console.log(
+    "MASTER REDISPATCH ENGINE ULTIMATE v7.2 READY"
+);
+
+//==================================================
+// 선택 오더 ID
+//==================================================
+let REDISPATCH_ORDER_ID = "";
+
+//==================================================
+// 재배차 모달 OPEN
+//==================================================
+function openRedispatch(orderId){
+    REDISPATCH_ORDER_ID = orderId;
+
+    const modal = document.getElementById("redispatchModal");
+    const list = document.getElementById("redispatchDriverList");
+
+    if(!modal || !list){
+        console.error("Redispatch Modal Missing");
+        return;
+    }
+
+    modal.style.display = "block";
+    list.innerHTML = "🚚 기사 목록 불러오는 중...";
+
+    if(typeof showLoading === "function") showLoading("기사 목록 조회중...");
+
+    // Ultimate v7 표준 Promise 프록시 호출로 수정
+    runServer("getDriverList")()
+    .then(function(data){
+        if(typeof hideLoading === "function") hideLoading();
+
+        let drivers = [];
+        try {
+            drivers = typeof data === "string" ? JSON.parse(data) : data;
+        }
+        catch(err){
+            console.error("DRIVER JSON ERROR", err);
+            if(typeof showError === "function") showError("기사 데이터 오류");
+            list.innerHTML = "기사 데이터 오류";
+            return;
+        }
+
+        let html = "";
+        drivers.forEach(function(driver){
+            // DRIVER_COL.STATUS 도메인 정합성 유지
+            if(driver.status !== "근무중"){
+                return;
+            }
+
+            html += `
+<div class="driver-select-card" onclick="executeRedispatch('${driver.id}')">
+🚚 <b>${driver.name}</b> <br>
+ID : ${driver.id} <br>
+상태 : ${driver.status}
+</div>
+`;
+        });
+
+        if(!html){
+            html = `<div>현재 근무중인 기사가 없습니다.</div>`;
+        }
+        list.innerHTML = html;
+    })
+    .catch(function(err){
+        if(typeof hideLoading === "function") hideLoading();
+        console.error(err);
+        if(typeof showError === "function") showError(err.message || "조회 실패");
+        list.innerHTML = "기사 조회 실패";
+    });
+}
+
+//==================================================
+// 재배차 실행
+//==================================================
+function executeRedispatch(driverId){
+    if(!REDISPATCH_ORDER_ID){
+        return;
+    }
+
+    if(typeof showLoading === "function") showLoading("재배차 처리중...");
+
+    // Ultimate v7 표준 Promise 프록시 호출로 수정
+    runServer("redispatchOrder")(REDISPATCH_ORDER_ID, driverId)
+    .then(function(result){
+        if(typeof hideLoading === "function") hideLoading();
+
+        if(result && result.success){
+            closeRedispatchModal();
+            if(typeof showToast === "function") showToast("재배차 완료", "success");
+            if(typeof syncOrdersBoard === "function"){
+                syncOrdersBoard();
+            }
+        }
+        else{
+            if(typeof showError === "function"){
+                showError((result && result.message) || "재배차 실패");
+            }
+        }
+    })
+    .catch(function(err){
+        if(typeof hideLoading === "function") hideLoading();
+        console.error(err);
+        if(typeof showError === "function") showError(err.message || "오류 발생");
+    });
+}
+
+//==================================================
+// Modal CLOSE
+//==================================================
+function closeRedispatchModal(){
+    const modal = document.getElementById("redispatchModal");
+    if(modal){
+        modal.style.display = "none";
+    }
+    REDISPATCH_ORDER_ID = "";
+}
+
+//==================================================
+// 외부 호출 API
+//==================================================
+window.MasterRedispatch = {
+    open: function(orderId){
+        openRedispatch(orderId);
+    },
+    close: function(){
+        closeRedispatchModal();
+    }
+};
+
+//==================================================
+// INIT
+//==================================================
+function initRedispatchEngine(){
+    console.log("REDISPATCH ENGINE INIT");
+}
+
+console.log("MASTER REDISPATCH READY");

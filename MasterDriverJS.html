@@ -1,0 +1,176 @@
+//==================================================
+// MasterDriverJS
+// Flower Delivery System
+// Ultimate v7.2 (Modified for Attendance Board)
+//==================================================
+
+console.log("MASTER DRIVER ENGINE ULTIMATE v7.2 READY");
+
+let MASTER_DRIVER_CACHE = [];
+
+//==================================================
+// 기사 카드 생성 (배정 버튼 제거, 통화 버튼 추가)
+//==================================================
+function createDriverCard(driver){
+    if(typeof safe !== "function"){
+        window.safe = function(val) { return val || ""; };
+    }
+
+    let statusClass = "bg-mi";
+    let sVal = safe(driver.status);
+    if(sVal === "근무중") statusClass = "bg-done";
+    else if(sVal === "배송중") statusClass = "bg-ing";
+
+    // 💡 카드를 누르면 focusMap이 실행되면서 지도가 해당 기사 위치로 움직입니다!
+    return `
+<div class="driver-row" onclick="focusMap(${driver.lat || 0}, ${driver.lng || 0})">
+    <div class="driver-left">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span class="driver-name">👤 ${safe(driver.name)}</span>
+            <span class="status-badge ${statusClass}">${sVal || "퇴근함"}</span>
+        </div>
+        <div class="driver-id">🆔 ID: ${safe(driver.id)} | 📞 연락처: ${safe(driver.phone) || "없음"}</div>
+        <div class="driver-time">📍 최근 GPS 갱신: ${safe(driver.time) || "-"} (위도: ${driver.lat || 0}, 경도: ${driver.lng || 0})</div>
+    </div>
+    <div style="display:flex; gap:8px;" onclick="event.stopPropagation();">
+        <button
+    type="button"
+    onclick="event.stopPropagation(); callDriver('${safe(driver.phone)}');"
+    style="background:#059669;color:white;padding:8px 12px;border:0;border-radius:8px;font-size:13px;font-weight:bold;"
+>
+    📞 통화
+</button>
+    </div>
+</div>`;
+}
+
+function callDriver(phone) {
+
+    if (!phone) {
+
+        alert("기사 전화번호가 없습니다.");
+
+        return;
+    }
+
+
+    if (
+        window.AndroidBridge &&
+        typeof AndroidBridge.callDriver === "function"
+    ) {
+
+        AndroidBridge.callDriver(phone);
+
+        return;
+    }
+
+
+    // 일반 브라우저
+    window.location.href =
+        "tel:" + phone;
+}
+
+//==================================================
+// 기사 통계 업데이트
+//==================================================
+function updateDriverSummary(list){
+    let count = 0;
+    if(Array.isArray(list)){
+        list.forEach(function(driver){
+            if(driver.status === "근무중") count++;
+        });
+    }
+    const el = document.getElementById("sumDriver");
+    if(el) el.innerText = count;
+}
+
+//==================================================
+// 기사 검색
+//==================================================
+function searchDriver(keyword){
+    keyword = String(keyword).toLowerCase();
+    document.querySelectorAll(".driver-row").forEach(function(card){
+        const text = card.innerText.toLowerCase();
+        card.style.display = text.includes(keyword) ? "flex" : "none";
+    });
+}
+
+//==================================================
+// 자동 갱신 타이머
+//==================================================
+let driverRefreshTimer = null;
+
+function startDriverAutoRefresh(){
+    if(driverRefreshTimer) clearInterval(driverRefreshTimer);
+    driverRefreshTimer = setInterval(function(){
+        if(typeof syncDriversBoard === "function") syncDriversBoard();
+    }, 30000);
+}
+
+//==================================================
+// Driver Init
+//==================================================
+function initDriverEngine(){
+    console.log("DRIVER ENGINE INIT");
+    if(typeof syncDriversBoard === "function") syncDriversBoard();
+    startDriverAutoRefresh();
+}
+
+//==================================================
+// 1. 깜박임 없는 기사 화면 출력 함수 (기존에 쓰시던 것)
+//==================================================
+let lastRenderedDriverSignature = ""; // 이전 데이터 상태 기억용 변수
+
+function renderDriverBoard(list){
+    const board = document.getElementById("driverListBoard");
+    if(!board) return;
+    
+    if(!list || list.length === 0){
+        board.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:30px;">등록된 현장 기사가 없습니다.</div>';
+        lastRenderedDriverSignature = "";
+        return;
+    }
+
+    // ⭐️ [핵심 수정] 깜박임을 유발하는 lat, lng, time은 비교 대상에서 제외하고,
+    // 오직 화면을 결정짓는 id와 status(출근/퇴근 등)만 가지고 서명을 만듭니다!
+    let currentSignature = JSON.stringify(list.map(d => ({ 
+        id: d.id, 
+        status: d.status 
+    })));
+    
+    // 서명이 이전과 똑같다면 DOM을 절대 건드리지 않음 (출근할 때도 깜박임 원천 차폐!)
+    if (currentSignature === lastRenderedDriverSignature) {
+        return; 
+    }
+    lastRenderedDriverSignature = currentSignature;
+
+    let html = "";
+    list.forEach(function(driver){
+        html += createDriverCard(driver);
+    });
+    
+    board.innerHTML = html;
+}
+
+//==================================================
+// 2. 깜박임 없는 백그라운드 자동 갱신 타이머 (이 코드를 추가하세요)
+//==================================================
+setInterval(function() {
+    google.script.run
+        .withSuccessHandler(function(responseJson) {
+            let drivers = responseJson;
+            if (typeof drivers === 'string') {
+                try { drivers = JSON.parse(drivers); } catch(e) { drivers = []; }
+            }
+            
+            // 데이터를 가져오되, 위 함수의 시그니처 비교 로직 덕분에 
+            // '퇴근함' 등으로 바뀐 부분이 있을 때만 화면이 부드럽게 갱신되고, 
+            // 바뀐 게 없으면 화면을 전혀 건드리지 않아 깜박임이 사라집니다!
+            if (typeof renderDriverBoard === 'function') {
+                renderDriverBoard(drivers);
+            }
+        })
+        .getDriverList();
+}, 5000); // 5초 주기
+
+console.log("MASTER DRIVER READY");

@@ -1,0 +1,2501 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Flower Delivery Ultimate v7 Driver</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <?!= include("DriverCSS"); ?>
+    <style>
+        @keyframes rejectBlink {
+            0% { border-color: #ef4444; box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+            50% { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.7); }
+            100% { border-color: #ef4444; box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .order-card-reject-alert {
+            animation: rejectBlink 1.5s infinite;
+            border: 2px solid #ef4444 !important;
+        }
+
+        #loginOverlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: #0f172a; 
+            z-index: 999999; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        .login-box { 
+            background: #1e293b; 
+            padding: 25px; 
+            border-radius: 12px; 
+            width: 85%; 
+            max-width: 380px; 
+            border: 1px solid #334155; 
+            text-align: center; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
+        }
+        .login-input { 
+            width: 100%; 
+            padding: 12px; 
+            margin-bottom: 12px; 
+            background: #0f172a; 
+            border: 1px solid #475569; 
+            color: white; 
+            border-radius: 6px; 
+            box-sizing: border-box; 
+            font-size: 14px; 
+        }
+        .login-input:focus { border-color: #60a5fa; outline: none; }
+    </style>
+</head>
+<body style="background-color: #0f172a; color: #f8fafc;">
+
+<div id="loginOverlay" style="display: none;">
+    <div class="login-box">
+        <h2 style="color: #60a5fa; margin-top: 0; margin-bottom: 15px; font-size: 20px;">🚖 기사 로그인</h2>
+        <form onsubmit="return false;">
+            <input type="text" id="loginDriverId" class="login-input" placeholder="기사 ID 입력 (예: driver01)">
+            <input type="password" id="loginPassword" class="login-input" placeholder="비밀번호 입력">
+        </form>
+        <button class="btn btn-work" onclick="processLogin()" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; background: #10b981; color: white; margin-bottom: 10px;">로그인하기</button>
+        <button class="btn" onclick="openRegisterModal()" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; background: #334155; color: #94a3b8;">계정이 없으신가요? 기사 회원가입</button>
+    </div>
+</div>
+
+<div id="registerModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999999; justify-content: center; align-items: center;">
+    <div style="background: #1e293b; width: 90%; max-width: 380px; border-radius: 12px; padding: 20px; border: 1px solid #334155; box-sizing: border-box; color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="font-size: 18px; color: #f43f5e; margin: 0;">📋 기사 회원가입</h3>
+            <button onclick="closeRegisterModal()" style="background: none; border: none; color: white; font-size: 22px; cursor: pointer;">×</button>
+        </div>
+        <form onsubmit="return false;">
+            <input type="text" id="regId" class="login-input" placeholder="기사 ID (예: driver05)">
+            <input type="text" id="regName" class="login-input" placeholder="성함 (예: 홍길동)">
+            <input type="text" id="regPhone" class="login-input" placeholder="연락처 (예: 010-1234-5678)">
+            <input type="password" id="regPassword" class="login-input" placeholder="비밀번호 입력">
+        </form>
+        <button class="btn" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; background: #f43f5e; color: white;" onclick="executeAppRegister()">회원가입 완료하기</button>
+    </div>
+</div>
+
+<div class="app-container" style="position: relative;">
+    <div style="position: absolute; top: 15px; right: 60px; z-index: 10;">
+        <button class="theme-toggle-btn" onclick="openSoundSettings()" title="알림음 설정">⚙️</button>
+    </div>
+    <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleDarkMode()" title="테마 변경">🌙</button>
+
+    <div class="profile-card">
+    <div class="profile-title">🚖 기사 업무 모드</div>
+    <div class="profile-info">
+        👨 기사명 <b id="uiDriverName">조회중...</b><br><br>  
+        🚚 근무상태 <span id="uiWorkBadge" class="profile-status status-inactive">조회중...</span><br><br>
+        
+        <button class="btn btn-action" style="background: #475569 !important; margin-bottom: 15px; width: 100%;" onclick="openHistoryModal()">📜 배송완료 내역 조회</button>
+        <button class="btn btn-action" style="background: #dc2626 !important; margin-bottom: 15px; width: 100%;" onclick="logoutDriver()">🚪 로그아웃</button>
+        
+        <div style="background:#1e293b; padding:12px; border-radius:8px; margin-top:10px; border:1px solid #334155;">
+            <div style="font-size:13px; font-weight:bold; color:#38bdf8; margin-bottom:6px;">📊 내 배송 내역 엑셀 다운로드</div>
+            <div style="display:flex; gap:6px; margin-bottom:8px;">
+                <input type="date" id="driverExcelStart" style="flex:1; background:#0f172a; color:white; border:1px solid #475569; padding:6px; border-radius:4px; font-size:12px;">
+                <input type="date" id="driverExcelEnd" style="flex:1; background:#0f172a; color:white; border:1px solid #475569; padding:6px; border-radius:4px; font-size:12px;">
+            </div>
+            <button type="button" onclick="downloadDriverOrderExcel()" style="width:100%; background:#10b981; color:white; border:none; padding:8px; border-radius:4px; font-weight:bold; font-size:12px; cursor:pointer;">📥 내 내역 엑셀(.xlsx) 다운로드</button>
+        </div>
+    </div>
+</div>
+
+<div class="btn-group" style="margin-top: 15px;">
+    <button class="btn btn-work" onclick="triggerWorkStatus('근무중')">출근하기</button>
+    <button class="btn btn-leave" onclick="triggerWorkStatus('퇴근함')">퇴근하기</button>
+</div>
+
+    <div class="profile-card stats-card" style="background: #1e293b; color: white; padding: 15px; border-radius: 12px; margin-bottom: 18px;">
+        <div class="profile-title" style="color: #60a5fa; font-size: 16px; margin-bottom: 10px;">📈 현재 오더 현황</div>
+        <div style="display: flex; justify-content: space-around; text-align: center;">
+            <div style="flex: 1;">
+                <div style="font-size: 11px; color: #94a3b8;">미확인 오더</div>
+                <div id="statWaitingCount" style="font-size: 20px; font-weight: bold; color: #38bdf8;">0건</div>
+            </div>
+            <div style="border-left: 1px solid #334155;"></div>
+            <div style="flex: 1;">
+                <div style="font-size: 11px; color: #94a3b8;">진행중 오더</div>
+                <div id="statActiveCount" style="font-size: 20px; font-weight: bold; color: #f59e0b;">0건</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+    <span>📦 나에게 배정된 오더</span>
+    <button type="button" id="refreshOrderBtn" onclick="refreshOrderList()" style="background:#2563eb;color:white;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:bold;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);white-space:nowrap;">🔄 새로고침</button>
+</div>
+<div id="uiOrderContainer" class="order-list">로딩중...</div>
+
+<div id="soundSettingsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:#1e293b; color:white; padding:20px; border-radius:12px; width:85%; max-width:320px; border:1px solid #475569; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0; color:#38bdf8; font-size:18px; margin-bottom:15px;">🔔 오더 알림음 설정</h3>
+        
+        <label style="font-size:13px; color:#94a3b8; display:block; margin-bottom:5px;">원하는 알림음을 선택하세요:</label>
+        <select id="soundSelectDropdown" style="width:100%; background:#0f172a; color:white; border:1px solid #475569; padding:10px; border-radius:6px; font-size:14px; margin-bottom:15px;">
+    <option value="alert_00001">알림음 1</option>
+    <option value="alert_00002">알림음 2</option>
+    <option value="alert_00003">알림음 3</option>
+    <option value="alert_00004">알림음 4</option>
+    <option value="alert_00005">알림음 5</option>
+    <option value="alert_00006">알림음 6</option>
+    <option value="alert_00007">알림음 7</option>
+    <option value="alert_00008">알림음 8</option>
+    <option value="alert_00009">알림음 9</option>
+    <option value="alert_00010">알림음 10</option>
+    <option value="alert_00011">알림음 11</option>
+    <option value="alert_00012">알림음 12</option>
+    <option value="alert_00013">알림음 13</option>
+    <option value="alert_00014">알림음 14</option>
+    <option value="alert_00015">알림음 15</option>
+    <option value="alert_00016">알림음 16</option>
+    <option value="alert_00017">알림음 17</option>
+    <option value="alert_00018">알림음 18</option>
+    <option value="alert_00019">알림음 19</option>
+    <option value="alert_00020">알림음 20</option>
+    <option value="alert_00021">알림음 21</option>
+    <option value="alert_00022">알림음 22</option>
+    <option value="alert_00023">알림음 23</option>
+    <option value="alert_00024">알림음 24</option>
+    <option value="alert_00025">알림음 25</option>
+    <option value="alert_00026">알림음 26</option>
+    <option value="alert_00027">알림음 27</option>
+    <option value="alert_00028">알림음 28</option>
+</select>
+
+        <div style="display: flex; gap: 8px;">
+            <button type="button" onclick="testPlayAlertSound()" style="flex:1; background:#475569; color:white; border:none; padding:10px; border-radius:6px; font-weight:bold; cursor:pointer;">🔊 미리듣기</button>
+            <button type="button" onclick="saveSoundSettings()" style="flex:1; background:#10b981; color:white; border:none; padding:10px; border-radius:6px; font-weight:bold; cursor:pointer;">저장</button>
+        </div>
+        <button type="button" onclick="closeSoundSettings()" style="width:100%; background:transparent; color:#94a3b8; border:none; padding:10px; margin-top:8px; cursor:pointer; font-size:13px;">닫기</button>
+    </div>
+</div>
+
+<script>
+  let DRIVER_ID = localStorage.getItem("driver_id") || "";
+  const DRIVER_COL = { ID:0, NAME:1, PHONE:2, STATUS:3, LAST_ACCESS:4, LAT:5, LNG:6, GPS_TIME:7 };
+  const ORDER_COL = { ORDER_ID:0, REGISTER:1, DATE:2, PRODUCT:3, ROUTE:4, ASSIGN_TYPE:5, DRIVER_ID:6, STATUS:7, IMAGE:8, THUMB:9, ROUTE_STATUS:10, REJECT_DRIVER:11, REJECT_TIME:12, COMPLETED_TIME:13 };
+  
+  function el(id) { return document.getElementById(id); }
+
+  let watchId = null;
+  let syncTimer = null;
+  let lastGpsSentTime = 0;
+  const GPS_THROTTLE_MS = 10000;
+  window.lastRenderedHtml = "";
+
+  function speakMessage(text) {
+      if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = 'ko-KR';
+          utterance.rate = 1.2;
+          window.speechSynthesis.speak(utterance);
+      }
+  }
+
+  window.addEventListener('DOMContentLoaded', function() {
+      if (!DRIVER_ID || DRIVER_ID === "null" || DRIVER_ID === "") {
+          document.body.style.backgroundColor = "#0f172a";
+          document.getElementById("loginOverlay").style.display = "flex";
+      } else {
+          document.getElementById("loginOverlay").style.display = "none";
+          initDriverApp();
+      }
+  });
+
+  
+function refreshOrderList() {
+    const btn = document.getElementById('refreshOrderBtn');
+    const container = document.getElementById('uiOrderContainer');
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = '🔄 새로고침 중...';
+    }
+
+    // 서버에서 오더 데이터를 다시 불러오는 함수(기존에 데이터를 불러오던 함수가 있다면 그 함수를 호출해주세요)
+    // 예: loadMyOrders(); 처럼 오더를 그려주는 함수 이름을 여기에 넣어주시면 됩니다.
+    
+    // 만약 기존에 오더를 불러오는 함수 이름이 다른 경우, 아래처럼 fetch나 기존 로직을 태워주세요.
+    try {
+        // 기존에 오더 목록을 불러오던 메인 함수 호출 (예시)
+        if (typeof loadOrders === 'function') {
+            loadOrders(); 
+        } else {
+            // 혹은 기존 데이터 로딩 함수가 따로 없다면 서버 API를 재호출하거나 location.href 대신 부드럽게 처리
+            // 아래는 예시로 1초 뒤 버튼 원복 (실제 데이터 로딩 완료 시점에 버튼을 풀고 텍스트를 되돌려야 합니다)
+            setTimeout(() => {
+                if(btn) {
+                    btn.disabled = false;
+                    btn.innerText = '🔄 새로고침';
+                }
+            }, 800);
+            return;
+        }
+    } catch (e) {
+        console.error("새로고침 오류:", e);
+    } finally {
+        // 데이터 로딩 완료 후 버튼 상태 복구
+        setTimeout(() => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerText = '🔄 새로고침';
+            }
+        }, 800);
+    }
+}
+
+
+    //==================================================
+// 기사 로그인 처리
+// 자동출근 완전 제거 버전
+//==================================================
+function processLogin() {
+
+    const id =
+        document
+            .getElementById("loginDriverId")
+            .value
+            .trim();
+
+    const pwd =
+        document
+            .getElementById("loginPassword")
+            .value
+            .trim();
+
+
+    //==================================================
+    // 1. 입력값 확인
+    //==================================================
+
+    if (!id || !pwd) {
+
+        alert(
+            "기사 ID와 비밀번호를 모두 입력해주세요."
+        );
+
+        return;
+    }
+
+
+    console.log("========================================");
+    console.log("[LOGIN] 로그인 요청");
+    console.log("[LOGIN] 기사 ID =", id);
+
+
+    //==================================================
+    // 2. GAS 로그인 확인
+    //==================================================
+
+    runServer(
+        "verifyDriverLogin",
+        [id, pwd],
+
+        function(res) {
+
+            console.log(
+                "[LOGIN] 서버 응답 =",
+                res
+            );
+
+
+            //==================================================
+            // 로그인 실패
+            //==================================================
+
+            if (!res || !res.success) {
+
+                alert(
+                    res && (
+                        res.msg ||
+                        res.message
+                    )
+                    ?
+                    (
+                        res.msg ||
+                        res.message
+                    )
+                    :
+                    "아이디 또는 비밀번호가 일치하지 않습니다."
+                );
+
+                return;
+            }
+
+
+            //==================================================
+            // 3. 로그인 성공
+            //==================================================
+
+            DRIVER_ID =
+                String(id).trim();
+
+
+            console.log(
+                "========================================"
+            );
+
+            console.log(
+                "[LOGIN] 로그인 성공:",
+                DRIVER_ID
+            );
+
+
+            //==================================================
+            // 4. 로그인 정보 저장
+            //==================================================
+
+            localStorage.setItem(
+                "driver_id",
+                DRIVER_ID
+            );
+
+            localStorage.setItem(
+                "driverId",
+                DRIVER_ID
+            );
+
+            localStorage.setItem(
+                "loginId",
+                DRIVER_ID
+            );
+
+
+            //==================================================
+            // 5. Android에 기사 ID만 전달
+            //
+            // ★ 중요
+            // 여기서는 출근하지 않는다.
+            // GPS도 시작하지 않는다.
+            //==================================================
+
+            const bridgeAvailable =
+                typeof window.AndroidBridge !== "undefined";
+
+
+            console.log(
+                "[LOGIN] AndroidBridge 존재 =",
+                bridgeAvailable
+            );
+
+
+            if (
+                bridgeAvailable &&
+                typeof window.AndroidBridge.setDriverId ===
+                    "function"
+            ) {
+
+                try {
+
+                    window.AndroidBridge.setDriverId(
+                        DRIVER_ID
+                    );
+
+                    console.log(
+                        "[LOGIN] Android 기사 ID 전달 완료"
+                    );
+
+                } catch (e) {
+
+                    console.error(
+                        "[LOGIN] Android 기사 ID 전달 오류:",
+                        e
+                    );
+
+                }
+
+            }
+
+
+            //==================================================
+            // 6. FCM Token
+            //==================================================
+
+            try {
+
+                const localToken =
+                    String(
+                        localStorage.getItem(
+                            "fcm_token"
+                        ) || ""
+                    ).trim();
+
+
+                if (localToken) {
+
+                    console.log(
+                        "[FCM] 기존 Token 발견"
+                    );
+
+
+                    if (
+                        typeof saveFcmTokenToServer ===
+                        "function"
+                    ) {
+
+                        saveFcmTokenToServer(
+                            DRIVER_ID,
+                            localToken
+                        );
+
+                    }
+
+                }
+
+
+                // 최신 FCM Token 요청
+
+                if (
+                    bridgeAvailable &&
+                    typeof window.AndroidBridge
+                        .requestFcmTokenFromWeb ===
+                        "function"
+                ) {
+
+                    window.AndroidBridge
+                        .requestFcmTokenFromWeb();
+
+                    console.log(
+                        "[FCM] 최신 Token 요청 완료"
+                    );
+
+                }
+
+            } catch (e) {
+
+                console.error(
+                    "[FCM] Token 처리 오류:",
+                    e
+                );
+
+            }
+
+
+            //==================================================
+            // 7. 로그인 화면 제거
+            //==================================================
+
+            const loginOverlay =
+                document.getElementById(
+                    "loginOverlay"
+                );
+
+
+            if (loginOverlay) {
+
+                loginOverlay.style.display =
+                    "none";
+
+            }
+
+
+            //==================================================
+            // 8. 기사앱 초기화
+            //
+            // ★ 자동출근 하지 않음
+            //==================================================
+
+            console.log(
+                "[LOGIN] 기사 앱 초기화 시작"
+            );
+
+
+            if (
+                typeof initDriverApp ===
+                "function"
+            ) {
+
+                initDriverApp();
+
+            }
+
+
+            //==================================================
+            // 9. 현재 상태는 서버에서 가져온다.
+            //
+            // ★ 절대 근무중으로 변경하지 않는다.
+            //==================================================
+
+            if (
+                typeof syncMyOrders ===
+                "function"
+            ) {
+
+                syncMyOrders();
+
+            }
+
+
+            console.log(
+                "========================================"
+            );
+
+        }
+    );
+}
+
+function logoutDriver() {
+    if (confirm("로그아웃 하시겠습니까?")) {
+        stopGpsTracking();
+        localStorage.removeItem("driver_id");
+        if (window.syncTimer) clearInterval(window.syncTimer);
+        
+        // ★★★★★ 안드로이드 네이티브 위치 서비스 종료 브릿지 추가 ★★★★★
+        try {
+            if (
+                typeof AndroidBridge !== "undefined" &&
+                AndroidBridge.stopLocationService
+            ) {
+                AndroidBridge.stopLocationService();
+            }
+        } catch (e) {
+            console.log(e);
+        }
+        // ========================================================
+        
+        document.body.style.backgroundColor = "#0f172a";
+        document.body.classList.remove("dark-mode");
+        
+        const overlay = document.getElementById("loginOverlay");
+        if (overlay) {
+            overlay.style.display = "flex";
+        } else {
+            location.reload();
+        }
+    }
+}
+
+  function openRegisterModal() { 
+      document.getElementById("registerModal").style.display = "flex"; 
+  }
+  
+  function closeRegisterModal() { 
+      document.getElementById("registerModal").style.display = "none"; 
+  }
+
+  function executeAppRegister() {
+      const id = document.getElementById("regId").value.trim();
+      const name = document.getElementById("regName").value.trim();
+      const phone = document.getElementById("regPhone").value.trim();
+      const pwd = document.getElementById("regPassword").value.trim();
+      if (!id || !name || !phone || !pwd) { alert("모든 정보를 입력해주세요."); return; }
+
+      runServer("registerDriver", [id, name, phone, pwd], function(res) {
+          if (res && res.success) {
+              alert("회원가입 완료! 로그인해주세요.");
+              closeRegisterModal();
+              document.getElementById("loginDriverId").value = id;
+          } else {
+              alert(res.msg || "회원가입 실패");
+          }
+      });
+  }
+
+  window.toggleDarkMode = function() {
+      const isDark = document.body.classList.toggle('dark-mode');
+      localStorage.setItem('driver_theme', isDark ? 'dark' : 'light');
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+          btn.innerText = isDark ? '☀️' : '🌙';
+      }
+  };
+
+  window.callServer = function(funcName, params, callback) {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+          console.warn("⚠️ 가상 테스트 모드 작동 (" + funcName + ")");
+          if (funcName === "getDriverName") callback(DRIVER_ID);
+          else if (funcName === "getIndividualDriverStatus") callback("근무중");
+          else if (funcName === "getOrdersData") callback(JSON.stringify([]));
+          else if (funcName === "verifyDriverLogin") callback({ success: true });
+          else if (funcName === "registerDriver") callback({ success: true });
+          else if (funcName === "saveFcmToken") callback({ success: true }); // ⭐️ 가상 모드 분기 추가
+          else callback({ success: true });
+          return;
+      }
+      
+      google.script.run
+          .withSuccessHandler(res => { if (typeof callback === 'function') callback(res); })
+          .withFailureHandler(err => {
+              console.error("서버 통신 실패 (" + funcName + "):", err);
+              if (typeof hideLoading === 'function') hideLoading();
+          })
+          [funcName].apply(null, params);
+  };
+
+  window.runServer = function(funcName, params, callback) {
+      window.callServer(funcName, params, callback);
+  };
+
+  function initDriverApp() {
+      console.log("App Initializing for Driver ID:", DRIVER_ID);
+      
+      const savedTheme = localStorage.getItem('driver_theme');
+      if (savedTheme === 'dark') {
+          document.body.classList.add('dark-mode');
+          const btn = document.getElementById('themeToggleBtn');
+          if (btn) btn.innerText = '☀️';
+      }
+
+      loadDriverProfile();
+      loadDriverStatus();
+      startOrderSync();
+  }
+
+  var CURRENT_ACTIVE_DRIVER_ID = "";
+
+  function loadDriverProfile() {
+      if (typeof DRIVER_ID !== "undefined") {
+          CURRENT_ACTIVE_DRIVER_ID = DRIVER_ID;
+      }
+
+      runServer("getDriverName", [DRIVER_ID], function(name) {
+          const ui = document.getElementById("uiDriverName");
+          if (ui) {
+              let driverNameStr = name || DRIVER_ID;
+              ui.innerText = driverNameStr + " (" + DRIVER_ID + ")";
+          }
+      });
+  }
+
+  function loadDriverStatus() {
+      runServer("getIndividualDriverStatus", [DRIVER_ID], function(status) {
+          updateUiState(status);
+          if (status === "근무중") startGpsTracking();
+      });
+  }
+
+  function updateUiState(status) {
+      const badge = el("uiWorkBadge");
+      if (!badge) return;
+      if (status === "근무중") {
+          badge.innerText = "근무중";
+          badge.className = "profile-status status-active";
+      } else {
+          badge.innerText = "퇴근함";
+          badge.className = "profile-status status-inactive";
+      }
+  }
+
+  // ==========================================
+// 2. 🕒 근무 상태 변경 통합 함수 (출근 / 퇴근 처리)
+// ==========================================
+function triggerWorkStatus(status) {
+
+    const isWorking = status === "근무중";
+
+    const loadingMsg =
+        isWorking
+            ? "출근 처리 중..."
+            : "퇴근 처리 중...";
+
+    if (typeof showLoading === 'function') {
+        showLoading(loadingMsg);
+    }
+
+
+    runServer(
+        "setDriverWorkStatus",
+        [DRIVER_ID, status],
+        function(res) {
+
+            if (typeof hideLoading === 'function') {
+                hideLoading();
+            }
+
+
+            // ==========================================
+            // 서버 상태 변경 실패
+            // ==========================================
+
+            if (
+                res &&
+                res.success === false
+            ) {
+
+                alert(
+                    res.msg ||
+                    "상태 변경에 실패했습니다."
+                );
+
+                return;
+            }
+
+
+            // ==========================================
+            // UI 상태 변경
+            // ==========================================
+
+            if (
+                typeof updateUiState === 'function'
+            ) {
+
+                updateUiState(status);
+
+            }
+
+
+            // ==========================================
+            // 🟢 출근
+            // ==========================================
+
+            if (isWorking) {
+
+                console.log(
+                    "🟢 수동 출근 처리 시작"
+                );
+
+
+                // ------------------------------------------
+                // 웹 알림음
+                // ------------------------------------------
+
+                playMelody('start');
+
+
+                // ------------------------------------------
+                // 웹 TTS
+                // ------------------------------------------
+
+                setTimeout(
+                    function() {
+
+                        speakText(
+                            "오늘도 안전운전 하십시요"
+                        );
+
+                    },
+                    300
+                );
+
+
+                // ------------------------------------------
+                // 웹 GPS
+                // ------------------------------------------
+
+                if (
+                    typeof startGpsTracking === 'function'
+                ) {
+
+                    startGpsTracking();
+
+                }
+
+
+                // ==========================================
+                // ★ Android 백그라운드 GPS
+                //
+                // 오직 "출근 버튼"을 눌렀을 때만 실행
+                //
+                // 로그인에서는 실행하지 않음
+                // 앱 실행에서도 실행하지 않음
+                // 알림 클릭에서도 실행하지 않음
+                // ==========================================
+
+                if (
+                    window.AndroidBridge &&
+                    typeof window.AndroidBridge.startLocationService === 'function'
+                ) {
+
+                    console.log(
+                        "📍 Android 백그라운드 위치 서비스 시작"
+                    );
+
+
+                    window.AndroidBridge
+                        .startLocationService();
+
+                }
+
+
+                alert(
+                    "출근 처리가 완료되었습니다."
+                );
+
+
+            }
+
+
+            // ==========================================
+            // 🔴 퇴근
+            // ==========================================
+
+            else {
+
+                console.log(
+                    "🔴 수동 퇴근 처리 시작"
+                );
+
+
+                // ------------------------------------------
+                // 웹 알림음
+                // ------------------------------------------
+
+                playMelody('end');
+
+
+                // ------------------------------------------
+                // 웹 TTS
+                // ------------------------------------------
+
+                setTimeout(
+                    function() {
+
+                        speakText(
+                            "오늘 하루도 수고하셨습니다"
+                        );
+
+                    },
+                    300
+                );
+
+
+                // ------------------------------------------
+                // 웹 GPS 종료
+                // ------------------------------------------
+
+                if (
+                    typeof stopGpsTracking === 'function'
+                ) {
+
+                    stopGpsTracking();
+
+                }
+
+
+                // ==========================================
+                // ★ Android 백그라운드 GPS 종료
+                // ==========================================
+
+                if (
+                    window.AndroidBridge &&
+                    typeof window.AndroidBridge.stopLocationService === 'function'
+                ) {
+
+                    console.log(
+                        "🛑 Android 백그라운드 위치 서비스 종료"
+                    );
+
+
+                    window.AndroidBridge
+                        .stopLocationService();
+
+                }
+
+
+                alert(
+                    "퇴근 처리가 완료되었습니다."
+                );
+
+            }
+
+
+            // ==========================================
+            // 오더 동기화
+            // ==========================================
+
+            if (
+                typeof syncMyOrders === 'function'
+            ) {
+
+                syncMyOrders();
+
+            }
+
+        }
+    );
+}
+
+
+// ==========================================
+// ☀️ 출근하기 버튼
+// ==========================================
+
+function handleClockIn() {
+
+    console.log(
+        "☀️ [수동] 출근 버튼 클릭"
+    );
+
+    triggerWorkStatus(
+        "근무중"
+    );
+
+}
+
+
+// ==========================================
+// 🌙 퇴근하기 버튼
+// ==========================================
+
+function handleClockOut() {
+
+    console.log(
+        "🌙 [수동] 퇴근 버튼 클릭"
+    );
+
+    triggerWorkStatus(
+        "퇴근함"
+    );
+
+}
+//==================================================
+// Android FCM Token 수신 (최종 방어 강화 버전)
+//==================================================
+console.log("========== FCM JS FILE START ==========");
+
+console.log("[FCM] receiveFcmToken 정의 시작");
+
+// ⭐️ window 객체에 직접 할당하여 전역 어디서든 확실하게 호출되도록 보장
+window.receiveFcmToken = function(driverId, token) {
+    try {
+        driverId = String(driverId || "").trim();
+        token = String(token || "").trim();
+
+        // 안드로이드가 driverId를 빈 값으로 줄 경우를 대비해 localStorage나 전역 변수에서 복구
+        if (!driverId) {
+            driverId = String(window.DRIVER_ID || localStorage.getItem("driver_id") || "").trim();
+            console.log("[FCM] 안드로이드에서 driverId가 안 넘어와서 로컬에서 복구함:", driverId);
+        }
+
+        console.log("[FCM] Token 수신 완료, driverId=" + driverId + ", length=" + token.length);
+
+        if (!token) {
+            console.error("[FCM] Token이 비어 있습니다.");
+            return "RECEIVE_EMPTY";
+        }
+
+        localStorage.setItem("fcm_token", token);
+
+        if (driverId) {
+            window.DRIVER_ID = driverId;
+            localStorage.setItem("driver_id", driverId);
+
+            // ⭐️ saveFcmTokenToServer 호출 전 window 객체 확인까지 거쳐 안전성 극대화
+            var targetFunc = window.saveFcmTokenToServer || saveFcmTokenToServer;
+
+            if (typeof targetFunc === "function") {
+                console.log("[FCM] saveFcmTokenToServer 호출 직전 -> ID:", driverId);
+                targetFunc(driverId, token);
+            } else {
+                console.error("[FCM] ❌ saveFcmTokenToServer 함수를 찾을 수 없습니다!");
+            }
+        } else {
+            console.error("[FCM] ❌ 기사 ID를 찾을 수 없어 서버 저장을 유예합니다.");
+        }
+
+        return "RECEIVE_OK";
+    } catch (err) {
+        console.error("[FCM] receiveFcmToken 오류", err);
+        return "RECEIVE_ERROR";
+    }
+};
+
+//==================================================
+// 안드로이드 브릿지 연결 확인 및 토큰 요청 신호
+//==================================================
+try {
+    if (typeof AndroidBridge !== "undefined" && typeof AndroidBridge.requestFcmTokenFromWeb === "function") {
+        AndroidBridge.requestFcmTokenFromWeb();
+        console.log("[FCM] AndroidBridge.requestFcmTokenFromWeb() 호출 완료");
+    } else {
+        console.log("[FCM] AndroidBridge를 아직 찾을 수 없습니다. 대기 중...");
+    }
+} catch (e) {
+    console.error("[FCM] 안드로이드 토큰 요청 중 오류 발생", e);
+}
+
+//==================================================
+// runServer 표준 규격을 준수하는 FCM 토큰 서버 저장 함수
+//==================================================
+function saveFcmTokenToServer(driverId, token) {
+    var currentId = String(driverId || DRIVER_ID || localStorage.getItem("driver_id") || "").trim();
+    var currentToken = String(token || localStorage.getItem("fcm_token") || "").trim();
+
+    if (!currentId || !currentToken) {
+        console.warn("[FCM] ⚠️ 기사 ID 또는 FCM 토큰이 부족하여 서버 저장을 대기합니다.");
+        return;
+    }
+
+    console.log("[FCM] 🚀 runServer를 통한 saveFcmToken 요청 전송 -> ID:", currentId);
+
+    // ⭐️ 핵심: runServer 호출 시 파라미터를 반드시 배열 [currentId, currentToken] 형태로 전달해야 합니다!
+    runServer(
+        "saveFcmToken", 
+        [currentId, currentToken], 
+        function(res) {
+            console.log("[FCM] 서버 저장 응답 결과:", res);
+            if (res && res.success === true) {
+                console.log("[FCM] ✅ 구글 시트 J열 토큰 저장 성공!");
+                localStorage.setItem("fcm_token", currentToken);
+                localStorage.setItem("driver_id", currentId);
+            } else {
+                console.error("[FCM] ❌ 서버 저장 실패 응답:", res);
+            }
+        }
+    );
+}
+
+  // ==========================================
+// 1. 오더 주기적 동기화 및 알림/배지 청소 함수
+// ==========================================
+function startOrderSync() {
+    if (window.syncTimer) clearInterval(window.syncTimer);
+    syncMyOrders();
+    window.syncTimer = setInterval(syncMyOrders, 10005);
+}
+
+let previousOrderCount = -1;
+
+function syncMyOrders() {
+    runServer("getOrdersData", [], function(raw) {
+        const container = el("uiOrderContainer");
+        if (!container) return;
+
+        if (!raw) {
+            const emptyHtml = '<div class="empty-order">📦 현재 배정된 오더가 없습니다.</div>';
+            if (window.lastRenderedHtml !== emptyHtml) {
+                renderHtml(container, emptyHtml);
+            }
+            updateStats(0, 0, 0);
+            previousOrderCount = 0;
+            return;
+        }
+
+        let orders = [];
+        try {
+            orders = typeof raw === "string" ? JSON.parse(raw) : raw;
+        } catch (e) {
+            console.error("오더 데이터 파싱 오류:", e);
+            return;
+        }
+
+        checkNewOrdersForDriver(orders);
+
+        if (!orders || orders.length === 0) {
+            const emptyHtml = '<div class="empty-order">📦 현재 배정된 오더가 없습니다.</div>';
+            if (window.lastRenderedHtml !== emptyHtml) {
+                renderHtml(container, emptyHtml);
+            }
+            updateStats(0, 0, 0);
+            previousOrderCount = 0;
+            return;
+        }
+
+        orders.sort(function(a, b) {           
+            function getDriverStatusWeight(row) {
+                let s = String(row[ORDER_COL.STATUS] || "").replace(/\s+/g, "").trim();
+                if (s.includes("거절") || s.includes("미확인")) return 1;
+                if (s.includes("수락") || s.includes("진행중") || s.includes("배송중")) return 2;
+                if (s.includes("완료") || s.includes("배송완료")) return 3;
+                return 4;
+            }
+
+            let weightA = getDriverStatusWeight(a);
+            let weightB = getDriverStatusWeight(b);
+
+            if (weightA !== weightB) {
+                return weightA - weightB;
+            }
+
+            let timeA = new Date(a[2] || 0).getTime();
+            let timeB = new Date(b[2] || 0).getTime();
+
+            if (timeA !== timeB) {
+                return timeA - timeB; 
+            }
+
+            return String(a[ORDER_COL.ORDER_ID] || "").localeCompare(String(b[ORDER_COL.ORDER_ID] || ""));
+        });
+
+        let html = "";
+        let count = 0;
+        let currentActiveOrderCount = 0;
+        
+        let waitingCount = 0;   
+        let activeCount = 0;    
+        let completedCount = 0; 
+
+        for (let i = 0; i < orders.length; i++) {
+            const row = orders[i];
+            if (!row) continue;
+            if (!isMyOrder(row)) continue;
+
+            let rawStatus = row[ORDER_COL.STATUS] || "미확인";
+            const globalStatus = String(rawStatus).replace(/\s+/g, "").trim();
+
+            if (globalStatus.includes("미확인") || globalStatus.includes("거절")) {
+                waitingCount++;
+            } else if (globalStatus.includes("진행중") || globalStatus.includes("배송중") || globalStatus.includes("수락")) {
+                activeCount++;
+            } else if (globalStatus.includes("완료") || globalStatus.includes("배송완료")) {
+                completedCount++; 
+            } else {
+                waitingCount++; 
+            }
+        }
+
+        for (let i = 0; i < orders.length; i++) {
+            const row = orders[i];
+            if (!row) continue;
+            if (!isMyOrder(row)) continue;
+
+            let rawStatus = row[ORDER_COL.STATUS] || "미확인";
+            const globalStatus = String(rawStatus).replace(/\s+/g, "").trim();
+
+            if (globalStatus.includes("완료") || globalStatus.includes("배송완료")) {
+                continue; 
+            }
+
+            count++;
+            currentActiveOrderCount++;
+
+            const orderId = row[ORDER_COL.ORDER_ID];
+            const registerTime = row[2] || "시간 정보 없음"; 
+            const product = row[ORDER_COL.PRODUCT] || "";
+            const isCorrected=row[13]===true;
+            const routeString = row[ORDER_COL.ROUTE] || "";
+            const routes = parseRoutes(routeString);
+            const statuses = parseStatuses(row[ORDER_COL.ROUTE_STATUS]);
+            const imageUrl = row[ORDER_COL.IMAGE] || "";
+            const thumbUrl = row[ORDER_COL.THUMB] || "";
+
+            html += buildOrderCard(orderId, (isCorrected?"🛠️(정정) ":"")+product, routes, statuses, globalStatus, imageUrl, thumbUrl, registerTime);
+        }
+
+        updateStats(waitingCount, activeCount, completedCount);
+
+        if (previousOrderCount !== -1 && currentActiveOrderCount > previousOrderCount) {
+            playAlertBeep();
+        }
+        previousOrderCount = currentActiveOrderCount;
+
+        const finalHtml = count === 0 ? '<div class="empty-order">📦 현재 배정된 오더가 없습니다.</div>' : html;
+
+        if (window.lastRenderedHtml !== finalHtml) {
+            renderHtml(container, finalHtml);
+
+            // ⭐️ 오더 목록이 화면에 렌더링될 때 안드로이드 브릿지 안전하게 호출
+            if (window.AndroidBridge && typeof window.AndroidBridge.updateOrderBadgeAndNotification === 'function') {
+                // 단일 오더의 경로 문자열을 넘기거나, 대표 메시지를 조합해서 전달합니다.
+                // 만약 가장 첫 번째 활성 오더의 경로를 넘기고 싶다면 아래와 같이 작성할 수 있습니다.
+                let firstRouteSummary = "";
+                for (let i = 0; i < orders.length; i++) {
+                    let row = orders[i];
+                    if (row && isMyOrder(row)) {
+                        let st = String(row[ORDER_COL.STATUS] || "").replace(/\s+/g, "").trim();
+                        if (!st.includes("완료") && !st.includes("배송완료")) {
+                            firstRouteSummary = row[ORDER_COL.ROUTE] || "신규 오더";
+                            break;
+                        }
+                    }
+                }
+
+                // 안드로이드 브릿지로 오더 개수와 대표 경로 텍스트 전달
+                window.AndroidBridge.updateOrderBadgeAndNotification(count, firstRouteSummary);
+            }
+        }
+    });
+}
+
+  // ⚡ [음성 제어 조건 수정] '미픽업'에는 음성이 나오지 않고, '픽업(배송중)'과 '배송완료'에만 음성이 출력되도록 처리
+  const originalChangeLocStatus = window.changeLocStatus;
+  window.changeLocStatus = function(orderId, index, status) {
+      // '미픽업' 글자가 포함되어 있지 않고 픽업 관련 상태일 때만 WAV 파일 재생 ("tts_pickup")
+      if (!status.includes("미픽업") && (status.includes("픽업") || status.includes("배송중"))) {
+          if (typeof speakText === 'function') {
+              speakText("tts_pickup");
+          }
+      } else if (status.includes("배송완료") || (status.includes("완료") && !status.includes("미"))) {
+          if (typeof speakText === 'function') {
+              speakText("tts_done"); // "완료!!" WAV 파일 재생
+          }
+      }
+
+      const btn = document.querySelector(`[data-order-id="${orderId}"][data-index="${index}"]`) || event?.target;
+      if (btn) {
+          btn.style.opacity = "0.6"; 
+      }
+
+      if (typeof originalChangeLocStatus === 'function') {
+          originalChangeLocStatus(orderId, index, status);
+      } else {
+          runServer("updateRouteStatus", [orderId, index, status], function(res) {
+              if (res && res.success) syncMyOrders();
+          });
+      }
+  };
+
+  // ⚡ 모든 배송 완료 처리 (완료 음성 유지)
+  const originalUpdateOrderStatus = window.updateOrderStatus;
+  window.updateOrderStatus = function(orderId, status) {
+      if (status.includes("완료") || status.includes("배송완료")) {
+          if (typeof speakText === 'function') {
+              speakText("tts_done"); // "완료!!" WAV 파일 재생
+          }
+      }
+
+      const card = document.getElementById(`order-card-${orderId}`);
+      if (card) {
+          card.style.transition = "opacity 0.3s ease";
+          card.style.opacity = "0.3";
+      }
+
+      if (typeof originalUpdateOrderStatus === 'function') {
+          originalUpdateOrderStatus(orderId, status);
+      } else {
+          runServer("updateOrderStatus", [orderId, status], function(res) {
+              if (res && res.success) syncMyOrders();
+          });
+      }
+  };
+
+  document.addEventListener("visibilitychange", function() {
+    if (!document.hidden) {
+        console.log("앱 화면으로 복귀: 즉시 최신 오더 동기화 실행");
+        
+        // 1. 주기적 동기화 함수 즉시 호출
+        if (typeof syncMyOrders === 'function') {
+            syncMyOrders();
+        }
+        
+        // 2. 만약 별도의 전체 체크 함수가 있다면 같이 호출 (없다면 위 syncMyOrders만으로도 충분합니다)
+        if (typeof fetchOrdersAndCheck === 'function') {
+            fetchOrdersAndCheck();
+        }
+    }
+});
+
+//--------------------
+
+function updateStats(waiting, active, completed) {
+    const statWaiting = document.getElementById("statWaitingCount");
+    const statActive = document.getElementById("statActiveCount");
+    const statCompleted = document.getElementById("statCompletedCount");
+    
+    if (statWaiting) statWaiting.innerText = waiting + "건";
+    if (statActive) statActive.innerText = active + "건";
+    if (statCompleted) statCompleted.innerText = completed + "건";
+}
+
+function renderHtml(container, newHtml) {
+    window.requestAnimationFrame(function() {
+        container.innerHTML = newHtml;
+        window.lastRenderedHtml = newHtml;
+    });
+}
+
+  // --- 헬퍼 및 카드 빌더 ---
+  // 🛡️ 내 오더인지 판별하는 함수 (이름이 붙어있거나 재배정된 오더도 완벽 인식)
+  function isMyOrder(row) {
+      if (!row) return false;
+      
+      const ORDER_COL = { ASSIGN_TYPE: 5, DRIVER_ID: 6, STATUS: 7 };
+      
+      let assignType = String(row[ORDER_COL.ASSIGN_TYPE] || "").trim();
+      let sheetDriverRaw = String(row[ORDER_COL.DRIVER_ID] || "").trim();
+      let status = String(row[ORDER_COL.STATUS] || "").replace(/\s+/g, "").trim();
+
+      // 💡 핵심: 시트에 "oflower|문정호" 형태로 들어가 있든 "oflower"로 들어가 있든 무조건 앞의 아이디만 추출
+      let sheetDriverId = sheetDriverRaw.includes("|") ? sheetDriverRaw.split("|")[0] : sheetDriverRaw;
+
+      // 1. 지정배차 또는 재배정된 경우: 정제된 기사 ID가 내 아이디와 일치하는지 확인
+      if (sheetDriverId !== "") {
+          return sheetDriverId === DRIVER_ID;
+      }
+
+      // 2. 선착순배차인 경우: 미확인 상태이거나 아직 담당 기사가 비어있는 오더
+      if (assignType.includes("선착순") || assignType === "") {
+          if (status.includes("미확인") || status.includes("대기") || sheetDriverId === "") {
+              return true;
+          }
+      }
+
+      return sheetDriverId === DRIVER_ID;
+  }
+
+  function parseRoutes(routeString) {
+      // 🛡️ 어떤 데이터가 들어오든(숫자, 배열, undefined 등) 무조건 안전한 문자열로 변환
+      const safeStr = String(routeString || "").trim();
+      
+      // 빈 문자열이거나 배열 형태의 잔여물인 경우 방어
+      if (!safeStr) return [];
+      
+      // 안전하게 split 실행
+      return safeStr.split("➡️").map(v => v.trim());
+  }
+
+  function parseStatuses(statusString) {
+      if (!statusString) return [];
+      return statusString.split(",").map(v => v.trim());
+  }
+
+  //==================================================
+  // 1. 오더 카드 빌더 (시간 정보 정상 표기 및 endCard 버그 제거)
+  //==================================================
+  function buildOrderCard(orderId,product,routes,statuses,globalStatus,imageUrl,thumbUrl,registerTime){
+    let timeText=registerTime?registerTime:"시간 정보 없음";
+    let statusClass="status-미확인";
+    let cardStateClass="order-card-unconfirmed";
+    let cleanStatus=String(globalStatus).replace(/\s+/g,"").trim();
+
+    if(cleanStatus.includes("수락")||cleanStatus.includes("진행중")||cleanStatus.includes("배송중")){
+        statusClass="status-수락";
+        cardStateClass="order-card-accepted";
+    }else if(cleanStatus.includes("완료")||cleanStatus.includes("배송완료")){
+        statusClass="status-배송완료";
+        cardStateClass="order-card-completed";
+    }else if(cleanStatus.includes("거절")){
+        statusClass="status-거절";
+        cardStateClass="order-card-rejected";
+    }else{
+        statusClass="status-미확인";
+        cardStateClass="order-card-unconfirmed";
+    }
+
+    let html=`<div class="order-card ${cardStateClass}" id="card_${orderId}">
+        <div class="card-head">
+            <div>
+                <span class="card-id">🆔 ${orderId}</span>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px;">⏱️ ${timeText}</div>
+            </div>
+            <span class="card-status ${statusClass}">${globalStatus}</span>
+        </div>`;
+
+    if(product&&String(product).trim()!==""){
+        html+=`
+        <div style="display:flex;align-items:center;gap:6px;margin:10px 0 6px 0;font-size:15px;font-weight:700;color:#2563eb;">
+            <span>📦</span>
+            <span>${String(product).trim()}</span>
+        </div>`;
+    }
+
+    if(cleanStatus.includes("미확인")||cleanStatus.includes("거절")){
+        html+=buildWaitingCard(orderId,routes);
+    }else{
+        html+=buildWorkingCard(orderId,routes,statuses,imageUrl,thumbUrl);
+    }
+
+    html+=`</div>`;
+    return html;
+}
+
+  //==================================================
+  // 2. 오더 동기화 및 렌더링 함수 내 호출부 수정 예시
+  //==================================================
+  function parseAndRenderOrders(rawOrders) {
+      if (!rawOrders) return;
+      let orders = [];
+      try {
+          orders = typeof rawOrders === "string" ? JSON.parse(rawOrders) : rawOrders;
+      } catch (e) { return; }
+
+      let activeHtml = "";
+      let completedCount = 0;
+      let activeCount = 0;
+
+      // i = 1 부터 시작 (헤더 제외)
+      for (let i = 0; i < orders.length; i++) {
+          const row = orders[i];
+          if (!row) continue;
+
+          // 내 오더인지 확인 (Common.gs의 컬럼 맵 기준 정확히 매핑)
+          const assignedDriver = row[ORDER_COL.DRIVER_ID];
+          if (assignedDriver !== DRIVER_ID) continue;
+
+          const orderId = row[ORDER_COL.ORDER_ID];
+          const status = row[ORDER_COL.STATUS]; // 상태 (미확인, 진행중, 배송완료 등)
+          const registerTime = row[ORDER_COL.REGISTER]; // ⏱️ 등록시간 (인덱스 1)
+          const routeStr = row[ORDER_COL.ROUTE] || "";
+          const imageUrl = row[ORDER_COL.IMAGE] || "";
+
+          // 통계 집계
+          if (status === "배송완료") {
+              completedCount++;
+              continue; // 완료된 오더는 메인 화면에서 제외 (통계 및 조회 모달에서 관리)
+          } else {
+              activeCount++;
+          }
+
+          // 경로 파싱 및 상태 파싱
+          let routes = routeStr.split(",");
+          let routeStatuses = [];
+          try {
+              if (row[ORDER_COL.ROUTE_STATUS]) {
+                  routeStatuses = JSON.parse(row[ORDER_COL.ROUTE_STATUS]);
+              }
+          } catch(e) {}
+
+          // 카드 생성 함수 호출 시 registerTime 전달
+          activeHtml += buildOrderCard(orderId, routes, routeStatuses, status, imageUrl, registerTime);
+      }
+
+      // 화면에 반영
+      const orderListContainer = document.getElementById("orderListContainer");
+      if (orderListContainer) {
+          orderListContainer.innerHTML = activeHtml === "" ? '<div class="empty-order">현재 배정된 오더가 없습니다.</div>' : activeHtml;
+      }
+
+      // 통계 UI 갱신
+      const statComp = document.getElementById("statCompletedCount");
+      const statAct = document.getElementById("statActiveCount");
+      if (statComp) statComp.innerText = completedCount + "건";
+      if (statAct) statAct.innerText = activeCount + "건";
+  }
+
+  function buildWaitingCard(orderId, routes) {
+      return `
+      <div class="route-info" style="margin:10px 0;">📍 ${routes.join(" ➜ ")}</div>
+      <div class="dispatch-buttons" style="display:flex; gap:10px; margin-top:10px;">
+          <button class="btn btn-work" style="flex:1;" onclick="acceptOrder('${orderId}')">✅ 수락</button>
+          <button class="btn btn-leave" style="flex:1;" onclick="rejectOrder('${orderId}')">❌ 거절</button>
+      </div>`;
+  }
+
+  function buildWorkingCard(orderId,routes,statuses,imageUrl,thumbUrl){
+    let html=`<div class="route-container" style="margin:10px 0;">`;
+
+    routes=Array.isArray(routes)?routes:[];
+    statuses=Array.isArray(statuses)?statuses:[];
+
+    routes.forEach((route,index)=>{
+        html+=buildRouteItem(orderId,index,String(route||""),String(statuses[index]||"미픽업"));
+    });
+
+    html+=`</div>`;
+
+    if(imageUrl&&String(imageUrl).trim()!==""){
+        let photoUrls=String(imageUrl).split(/[|,]/).map(v=>v.trim()).filter(Boolean);
+        let photoHtml="";
+        let safePhotos=encodeURIComponent(String(imageUrl));
+
+        photoUrls.forEach(function(url,index){
+            let previewUrl=url;
+
+            if(previewUrl.includes("drive.google.com")){
+                let fileId="";
+                let match=previewUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+                if(match&&match[1])fileId=match[1];
+
+                if(!fileId){
+                    match=previewUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                    if(match&&match[1])fileId=match[1];
+                }
+
+                if(fileId){
+                    previewUrl="https://drive.google.com/thumbnail?id="+fileId+"&sz=w1000";
+                }
+            }
+
+            photoHtml+=`
+            <img
+                src="${previewUrl}"
+                alt="참고사진 ${index+1}"
+                style="width:calc(50% - 4px);height:120px;object-fit:cover;border-radius:8px;cursor:pointer;background:#e5e7eb;"
+                onclick="showPhotos(decodeURIComponent('${safePhotos}'),${index})"
+                onerror="this.style.display='none';"
+            >`;
+        });
+
+        if(photoHtml){
+            html+=`
+            <div class="order-photo-preview" style="margin-top:10px;padding:8px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+                <div style="font-size:12px;font-weight:bold;color:#64748b;margin-bottom:6px;">📷 참고사진</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    ${photoHtml}
+                </div>
+            </div>`;
+        }
+    }
+
+    html+=`
+    <button
+        class="btn btn-action btn-complete"
+        style="width:100%;margin-top:8px;"
+        onclick="finishOrder('${orderId}')"
+    >📦 모든 배송 완료</button>`;
+
+    return html;
+}
+
+  function buildRouteItem(orderId, index, route, status) {
+      const cls = status.replace("(배송중)","").trim();
+      return `
+      <div class="route-item">
+          <span class="route-text">📍 ${route}</span>
+          <div class="status-toggle-box">
+              <button class="btn-toggle ${cls==="미픽업"?"active-waiting":""}" onclick="changeLocStatus('${orderId}', ${index}, '미픽업')">미픽업</button>
+              <button class="btn-toggle ${cls==="픽업"?"active-pickup":""}" onclick="changeLocStatus('${orderId}', ${index}, '픽업(배송중)')">픽업</button>
+              <button class="btn-toggle ${cls==="배송완료"?"active-complete":""}" onclick="changeLocStatus('${orderId}', ${index}, '배송완료')">배송완료</button>
+          </div>
+      </div>`;
+  }
+
+  // --- 액션 함수들 ---
+  function acceptOrder(orderId) {
+      showLoading("오더 수락 중...");
+      /*runServer("acceptFleetingOrder", [orderId, DRIVER_ID], function(res) {*/ //선착순 배차 구현할때 사용
+       runServer("acceptOrder",[orderId,DRIVER_ID],function(res){
+          hideLoading();
+          if (res && res.success === false) { alert(res.msg || "수락 실패"); return; }
+          alert("오더가 성공적으로 수락되었습니다.");
+          syncMyOrders();
+      });
+  }
+
+  function rejectOrder(orderId) {
+    if (confirm("이 배차를 거절하시겠습니까?")) {
+        showLoading("배차 거절 중...");
+        
+        runServer("rejectFleetingOrder", [orderId, DRIVER_ID], function(res) {
+            hideLoading();
+            
+            // 1. 응답 데이터가 아예 없거나 실패한 경우 처리
+            if (!res) {
+                alert("서버 응답이 없습니다. 다시 시도해주세요.");
+                return;
+            }
+            
+            if (res.success === false || res.status === "error") {
+                alert(res.msg || res.message || "거절 실패");
+                return;
+            }
+            
+            // 2. 거절 성공 처리
+            alert("배차를 거절했습니다.");
+            
+            // 3. 즉시 화면 동기화 실행 (만약의 경우를 대비해 0.1초 뒤 한 번 더 확실하게 호출)
+            if (typeof syncMyOrders === 'function') {
+                syncMyOrders();
+                setTimeout(() => {
+                    syncMyOrders();
+                }, 300);
+            } else {
+                location.reload(); // 함수가 없으면 새로고침으로 화면 정화
+            }
+        });
+    }
+}
+
+  function changeLocStatus(orderId, index, nextStatus) {
+      showLoading("상태 변경 중...");
+      runServer("updateIndividualLocationStatus", [orderId, index, nextStatus], function(res) {
+          hideLoading();
+          if (res && res.success === false) { alert(res.msg || "상태 변경 실패"); return; }
+          syncMyOrders();
+      });
+  }
+
+  // ==========================================
+// 🎵 멜로디 함수 (출근/퇴근 등) -> WAV 파일 매칭
+// ==========================================
+function playMelody(type) {
+    if (type === 'start') {
+        // 출근할 때 WAV 파일 재생 ("tts_drive_safely")
+        speakText("tts_drive_safely");
+    } else if (type === 'end') {
+        // 퇴근할 때 WAV 파일 재생 ("tts_end_of_day")
+        speakText("tts_end_of_day");
+    }
+}
+
+
+  function finishOrder(orderId) {
+
+    if (!confirm("정말 모든 배송을 완료 처리하시겠습니까?")) {
+        return;
+    }
+
+    google.script.run
+        .withSuccessHandler(function(res) {
+
+            console.log(
+                "completeOrder 서버 응답 =",
+                res
+            );
+
+            if (res !== true) {
+
+                alert(
+                    "❌ 배송 완료 처리에 실패했습니다.\n" +
+                    "서버 응답 = " +
+                    JSON.stringify(res)
+                );
+
+                return;
+            }
+
+            if (typeof speakText === 'function') {
+                speakText("tts_good_job");
+            }
+
+            alert("📦 배송이 완료되었습니다!");
+
+            const targetCard =
+                document.getElementById(
+                    "order-card-" + orderId
+                );
+
+            if (targetCard) {
+                targetCard.remove();
+            }
+
+            if (typeof syncMyOrders === 'function') {
+                syncMyOrders();
+            }
+
+        })
+        .withFailureHandler(function(err) {
+
+            console.error(
+                "completeOrder 서버 오류 =",
+                err
+            );
+
+            alert(
+                "❌ 처리 실패: " +
+                (err.message || err)
+            );
+
+        })
+        .completeOrder(orderId);
+}
+
+  
+
+  // 사용자가 화면을 터치하는 순간 오디오 시스템 활성화 (브라우저 정책 우회)
+  function initAudioOnTouch() {
+      if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioContext.state === 'suspended') {
+          audioContext.resume();
+      }
+      window.removeEventListener('touchstart', initAudioOnTouch);
+      window.removeEventListener('click', initAudioOnTouch);
+  }
+
+  window.addEventListener('touchstart', initAudioOnTouch);
+  window.addEventListener('click', initAudioOnTouch);
+
+  
+
+  // 🚚 "모든 배송 완료" 버튼을 눌렀을 때 실행되는 함수 예시
+  function handleCompleteAllOrders() {
+      // 1. 서버 전송 또는 완료 처리 로직...
+      console.log("모든 배송 완료 처리 중...");
+
+      // 💡 [핵심 추가] 완료 처리가 성공적으로 실행될 때 음성 재생!
+      try {
+          playAlertBeep(); // 또는 playSingleBeep(audioContext, 0);
+      } catch (e) {
+          console.log("완료 음성 재생 실패:", e);
+      }
+
+      // 2. 화면 갱신 및 완료 알림
+      alert("모든 배송이 완료되었습니다!");
+      refreshOrderDashboard();
+  }
+
+  //==================================================
+  // 🔍 확대/축소 및 드래그 이동이 가능한 스마트 이미지 뷰어 엔진
+  //==================================================
+  let viewerScale=1;
+let viewerPosX=0;
+let viewerPosY=0;
+let isDragging=false;
+let startX=0,startY=0;
+let viewerPhotoList=[];
+let viewerPhotoIndex=0;
+
+function showPhotos(imageUrl,startIndex){
+    if(!imageUrl||String(imageUrl).trim()===""){
+        alert("등록된 참고사진이 없습니다.");
+        return;
+    }
+
+    viewerPhotoList=String(imageUrl).split(/[|,]/).map(v=>v.trim()).filter(Boolean);
+
+    if(viewerPhotoList.length===0){
+        alert("등록된 참고사진이 없습니다.");
+        return;
+    }
+
+    viewerPhotoIndex=Number.isFinite(Number(startIndex))?Number(startIndex):0;
+
+    if(viewerPhotoIndex<0||viewerPhotoIndex>=viewerPhotoList.length){
+        viewerPhotoIndex=0;
+    }
+
+    let viewer=document.getElementById("customImageViewer");
+
+    if(!viewer){
+        viewer=document.createElement("div");
+        viewer.id="customImageViewer";
+        viewer.className="image-viewer";
+        viewer.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;display:flex;justify-content:center;align-items:center;overflow:hidden;";
+
+        viewer.innerHTML=`
+            <div class="viewer-background" onclick="closePhotoViewer()" style="position:absolute;width:100%;height:100%;background:rgba(0,0,0,0.85);"></div>
+            <div class="viewer-body" style="position:relative;z-index:2;width:100%;height:100%;display:flex;justify-content:center;align-items:center;overflow:hidden;touch-action:none;">
+                <img id="viewerImageTarget" src="" alt="참고사진" style="max-width:90%;max-height:85vh;object-fit:contain;border-radius:10px;cursor:grab;transition:transform 0.05s ease-out;transform-origin:center center;">
+
+                <button id="viewerPrevBtn" onclick="event.stopPropagation();viewerPrevPhoto()" style="position:absolute;left:15px;top:50%;transform:translateY(-50%);width:46px;height:46px;border:none;border-radius:50%;background:rgba(0,0,0,0.65);color:white;font-size:30px;cursor:pointer;font-weight:bold;z-index:10;">‹</button>
+
+                <button id="viewerNextBtn" onclick="event.stopPropagation();viewerNextPhoto()" style="position:absolute;right:15px;top:50%;transform:translateY(-50%);width:46px;height:46px;border:none;border-radius:50%;background:rgba(0,0,0,0.65);color:white;font-size:30px;cursor:pointer;font-weight:bold;z-index:10;">›</button>
+
+                <button onclick="closePhotoViewer()" style="position:absolute;top:20px;right:20px;width:42px;height:42px;border:none;border-radius:50%;background:#ef4444;color:white;font-size:22px;cursor:pointer;font-weight:bold;z-index:10;box-shadow:0 4px 10px rgba(0,0,0,0.3);">×</button>
+
+                <div id="viewerPhotoCounter" style="position:absolute;bottom:55px;background:rgba(0,0,0,0.6);color:white;padding:7px 13px;border-radius:20px;font-size:12px;pointer-events:none;"></div>
+
+                <div style="position:absolute;bottom:20px;background:rgba(0,0,0,0.6);color:white;padding:8px 15px;border-radius:20px;font-size:12px;pointer-events:none;">💡 마우스 휠 또는 더블 클릭으로 확대/축소 가능</div>
+            </div>
+        `;
+
+        document.body.appendChild(viewer);
+
+        const imgTarget=viewer.querySelector("#viewerImageTarget");
+        let initialDistance=0;
+
+        imgTarget.addEventListener("touchstart",function(e){
+            if(e.touches.length===2){
+                initialDistance=Math.hypot(
+                    e.touches[0].clientX-e.touches[1].clientX,
+                    e.touches[0].clientY-e.touches[1].clientY
+                );
+            }else if(e.touches.length===1&&viewerScale>1){
+                startDrag(e.touches[0]);
+            }
+        });
+
+        imgTarget.addEventListener("touchmove",function(e){
+            if(e.touches.length===2){
+                e.preventDefault();
+
+                const currentDistance=Math.hypot(
+                    e.touches[0].clientX-e.touches[1].clientX,
+                    e.touches[0].clientY-e.touches[1].clientY
+                );
+
+                if(initialDistance>0){
+                    const scaleFactor=currentDistance/initialDistance;
+                    viewerScale*=scaleFactor;
+
+                    if(viewerScale<1)viewerScale=1;
+                    if(viewerScale>5)viewerScale=5;
+
+                    updateImageTransform();
+                }
+
+                initialDistance=currentDistance;
+            }else if(e.touches.length===1&&isDragging){
+                onDrag(e.touches[0]);
+            }
+        },{passive:false});
+
+        window.addEventListener("touchend",endDrag);
+
+        viewer.addEventListener("wheel",function(e){
+            e.preventDefault();
+
+            const zoomIntensity=0.1;
+
+            if(e.deltaY<0){
+                viewerScale+=zoomIntensity;
+            }else{
+                viewerScale-=zoomIntensity;
+                if(viewerScale<1)viewerScale=1;
+            }
+
+            updateImageTransform();
+        },{passive:false});
+
+        imgTarget.addEventListener("dblclick",function(e){
+            e.stopPropagation();
+
+            if(viewerScale===1){
+                viewerScale=2.5;
+            }else{
+                viewerScale=1;
+                viewerPosX=0;
+                viewerPosY=0;
+            }
+
+            updateImageTransform();
+        });
+
+        imgTarget.addEventListener("mousedown",startDrag);
+        window.addEventListener("mousemove",onDrag);
+        window.addEventListener("mouseup",endDrag);
+
+        imgTarget.addEventListener("touchstart",function(e){
+            if(e.touches.length===1){
+                startDrag(e.touches[0]);
+            }
+        });
+
+        window.addEventListener("touchmove",function(e){
+            if(e.touches.length===1){
+                onDrag(e.touches[0]);
+            }
+        });
+
+        window.addEventListener("touchend",endDrag);
+
+        document.addEventListener("keydown",function(e){
+            if(viewer&&viewer.style.display==="flex"){
+                if(e.key==="ArrowLeft")viewerPrevPhoto();
+                if(e.key==="ArrowRight")viewerNextPhoto();
+                if(e.key==="Escape")closePhotoViewer();
+            }
+        });
+    }
+
+    viewerScale=1;
+    viewerPosX=0;
+    viewerPosY=0;
+    updateImageTransform();
+    updateViewerPhoto();
+
+    viewer.style.display="flex";
+}
+
+function updateViewerPhoto(){
+    const imgTarget=document.getElementById("viewerImageTarget");
+    const counter=document.getElementById("viewerPhotoCounter");
+    const prevBtn=document.getElementById("viewerPrevBtn");
+    const nextBtn=document.getElementById("viewerNextBtn");
+
+    if(!imgTarget||!viewerPhotoList.length)return;
+
+    let targetUrl=viewerPhotoList[viewerPhotoIndex];
+
+    if(targetUrl.includes("drive.google.com")){
+        let fileId="";
+        let match=targetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+
+        if(match&&match[1])fileId=match[1];
+
+        if(!fileId){
+            match=targetUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+            if(match&&match[1])fileId=match[1];
+        }
+
+        if(fileId){
+            targetUrl="https://lh3.googleusercontent.com/d/"+fileId;
+        }
+    }
+
+    imgTarget.onerror=function(){
+        alert("이미지를 불러올 수 없습니다. 링크 주소를 확인해 주세요.");
+    };
+
+    imgTarget.src=targetUrl;
+
+    if(counter){
+        counter.textContent="📷 "+(viewerPhotoIndex+1)+" / "+viewerPhotoList.length;
+    }
+
+    if(prevBtn){
+        prevBtn.style.display=viewerPhotoList.length>1?"block":"none";
+    }
+
+    if(nextBtn){
+        nextBtn.style.display=viewerPhotoList.length>1?"block":"none";
+    }
+}
+
+function viewerPrevPhoto(){
+    if(!viewerPhotoList.length)return;
+
+    viewerPhotoIndex--;
+
+    if(viewerPhotoIndex<0){
+        viewerPhotoIndex=viewerPhotoList.length-1;
+    }
+
+    viewerScale=1;
+    viewerPosX=0;
+    viewerPosY=0;
+    updateImageTransform();
+    updateViewerPhoto();
+}
+
+function viewerNextPhoto(){
+    if(!viewerPhotoList.length)return;
+
+    viewerPhotoIndex++;
+
+    if(viewerPhotoIndex>=viewerPhotoList.length){
+        viewerPhotoIndex=0;
+    }
+
+    viewerScale=1;
+    viewerPosX=0;
+    viewerPosY=0;
+    updateImageTransform();
+    updateViewerPhoto();
+}
+
+  function startDrag(e) {
+      if (viewerScale <= 1) return; // 확대되지 않았을 때는 드래그 안 함
+      isDragging = true;
+      startX = e.clientX - viewerPosX;
+      startY = e.clientY - viewerPosY;
+      const imgTarget = document.getElementById("viewerImageTarget");
+      if (imgTarget) imgTarget.style.cursor = "grabbing";
+  }
+
+  function onDrag(e) {
+      if (!isDragging) return;
+      viewerPosX = e.clientX - startX;
+      viewerPosY = e.clientY - startY;
+      updateImageTransform();
+  }
+
+  function endDrag() {
+      isDragging = false;
+      const imgTarget = document.getElementById("viewerImageTarget");
+      if (imgTarget) imgTarget.style.cursor = viewerScale > 1 ? "grab" : "default";
+  }
+
+  function updateImageTransform() {
+      const imgTarget = document.getElementById("viewerImageTarget");
+      if (imgTarget) {
+          imgTarget.style.transform = `translate(${viewerPosX}px, ${viewerPosY}px) scale(${viewerScale})`;
+          if (viewerScale > 1) {
+              imgTarget.style.cursor = isDragging ? "grabbing" : "grab";
+          } else {
+              imgTarget.style.cursor = "default";
+          }
+      }
+  }
+
+  function closePhotoViewer() {
+      const viewer = document.getElementById("customImageViewer");
+      if (viewer) {
+          viewer.style.display = "none";
+      }
+  }
+
+  // --- 유틸 및 GPS ---
+  function showLoading(msg) { console.log("Loading:", msg); }
+  function hideLoading() { console.log("Hide Loading"); }
+
+  function startGpsTracking() {
+      if (watchId !== null) return;
+      if (navigator.geolocation) {
+          watchId = navigator.geolocation.watchPosition(onGpsSuccess, onGpsError, { enableHighAccuracy: true });
+          console.log("GPS Tracking Started");
+      }
+  }
+  function stopGpsTracking() {
+      if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+      }
+  }
+  function onGpsSuccess(pos) {
+      const now = Date.now();
+      if (now - lastGpsSentTime < GPS_THROTTLE_MS) return;
+      lastGpsSentTime = now;
+      runServer("updateDriverLocation", [DRIVER_ID, pos.coords.latitude, pos.coords.longitude], function() {});
+  }
+
+  // 서버에서 전체 오더를 가져와 '배송완료' 이면서 내 아이디인 것만 필터링
+let cachedOrdersForHistory=[];
+
+function openHistoryModal(){document.getElementById("historyModal").style.display="flex";loadHistoryOrders();}
+
+function closeHistoryModal(){document.getElementById("historyModal").style.display="none";}
+
+function loadHistoryOrders(){
+    runServer("getOrdersData",[],function(raw){
+        if(!raw)return;
+        let orders=[];
+        try{orders=typeof raw==="string"?JSON.parse(raw):raw;}catch(e){return;}
+
+        cachedOrdersForHistory=[];
+
+        for(let i=0;i<orders.length;i++){
+            const row=orders[i];
+            if(!row)continue;
+
+            const driverId=String(row[ORDER_COL.DRIVER_ID]||"").trim();
+            const status=String(row[ORDER_COL.STATUS]||"").trim();
+
+            if(driverId===DRIVER_ID&&status==="배송완료"){
+                cachedOrdersForHistory.push(row);
+            }
+        }
+
+        setHistoryDate("today");
+    });
+}
+
+function setHistoryDate(type){
+    const input=document.getElementById("historyDateInput");
+    if(!input)return;
+
+    const todayBtn=document.getElementById("historyTodayBtn");
+    const yesterdayBtn=document.getElementById("historyYesterdayBtn");
+    const allBtn=document.getElementById("historyAllBtn");
+
+    if(todayBtn)todayBtn.style.background="#475569";
+    if(yesterdayBtn)yesterdayBtn.style.background="#475569";
+    if(allBtn)allBtn.style.background="#475569";
+
+    if(type==="all"){
+        input.value="";
+        if(allBtn)allBtn.style.background="#2563eb";
+        filterHistoryOrders(false);
+        return;
+    }
+
+    const d=new Date();
+
+    if(type==="yesterday"){
+        d.setDate(d.getDate()-1);
+        if(yesterdayBtn)yesterdayBtn.style.background="#2563eb";
+    }else{
+        if(todayBtn)todayBtn.style.background="#2563eb";
+    }
+
+    input.value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    filterHistoryOrders(false);
+}
+
+function filterHistoryData(){
+    const dateValue=document.getElementById("historyDateInput")?.value||"";
+    const keyword=(document.getElementById("historySearchInput")?.value||"").toLowerCase().trim();
+
+    return cachedOrdersForHistory.filter(row=>{
+        const orderId=String(row[ORDER_COL.ORDER_ID]||"").toLowerCase();
+        const route=String(row[ORDER_COL.ROUTE]||"").toLowerCase();
+
+        const completedDate=String(row[ORDER_COL.COMPLETED_TIME]||"").substring(0,10);
+
+        const dateMatch=!dateValue||completedDate===dateValue;
+        const keywordMatch=!keyword||orderId.includes(keyword)||route.includes(keyword);
+
+        return dateMatch&&keywordMatch;
+    });
+}
+
+function renderHistoryList(list){
+    const container=document.getElementById("historyListContainer");
+    const countEl=document.getElementById("historyCount");
+    if(countEl)countEl.textContent="🔎 검색 결과 총 "+list.length+"건";
+    if(!container)return;
+
+    if(list.length===0){
+        container.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;">완료된 배송 내역이 없습니다.</div>';
+        return;
+    }
+
+    let html="";
+
+    list.forEach(row=>{
+        const orderId=row[ORDER_COL.ORDER_ID]||"-";
+        const product=row[ORDER_COL.PRODUCT]||"-";
+        const date=row[ORDER_COL.COMPLETED_TIME]||"-";
+        const route=row[ORDER_COL.ROUTE]||"-";
+        const time=row[ORDER_COL.DATE]||"-";
+
+        html+=`
+            <div style="background:#0f172a;border:1px solid #334155;padding:12px;border-radius:8px;">
+                <div style="display:flex;justify-content:space-between;font-size:13px;color:#64b5f6;margin-bottom:5px;">
+                    <span>🆔 ${orderId}</span>
+                    <span>📅 ${date}</span>
+                </div>
+                <div style="font-size:14px;color:#e2e8f0;font-weight:bold;">📦 ${product}</div>
+                <div style="font-size:14px;color:#e2e8f0;font-weight:bold;">📍 ${route}</div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:5px;">등록시간: ${time}</div>
+            </div>
+        `;
+    });
+
+    container.innerHTML=html;
+}
+
+function filterHistoryOrders(dateChanged){
+    if(dateChanged){
+        const todayBtn=document.getElementById("historyTodayBtn");
+        const yesterdayBtn=document.getElementById("historyYesterdayBtn");
+        const allBtn=document.getElementById("historyAllBtn");
+
+        if(todayBtn)todayBtn.style.background="#475569";
+        if(yesterdayBtn)yesterdayBtn.style.background="#475569";
+        if(allBtn)allBtn.style.background="#475569";
+    }
+
+    renderHistoryList(filterHistoryData());
+}
+
+  
+  // 📊 기사 전용 엑셀 다운로드 함수 (D열 기사ID 반영)
+  function downloadDriverOrderExcel(){
+  const startDate=document.getElementById("driverExcelStart").value;
+  const endDate=document.getElementById("driverExcelEnd").value;
+
+  if(!startDate||!endDate){
+    alert("조회할 시작일과 종료일을 모두 선택해주세요.");
+    return;
+  }
+
+  const driverId=CURRENT_ACTIVE_DRIVER_ID||(typeof DRIVER_ID!=="undefined"?DRIVER_ID:"")||localStorage.getItem("driverId")||"";
+
+  if(!driverId){
+    alert("기사 정보가 확인되지 않습니다. 다시 로그인해주세요.");
+    return;
+  }
+
+  console.log("📥 Excel 요청 = "+driverId+" / "+startDate+" ~ "+endDate);
+
+  if(typeof showLoading==="function")showLoading("Excel 파일 생성 중...");
+
+  google.script.run
+    .withSuccessHandler(function(result){
+      if(typeof hideLoading==="function")hideLoading();
+
+      if(!result){
+        alert("❌ Excel 파일 생성 결과가 없습니다.");
+        return;
+      }
+
+      if(typeof result==="string"){
+        alert(result.startsWith("ERROR")?result:"❌ Excel 생성 실패");
+        return;
+      }
+
+      if(!result.base64||!result.fileName){
+        alert("❌ Excel 파일 데이터가 없습니다.");
+        return;
+      }
+
+      if(typeof AndroidBridge==="undefined"||typeof AndroidBridge.saveBase64File!=="function"){
+        alert("❌ Android 파일 저장 기능을 찾을 수 없습니다.");
+        return;
+      }
+
+      AndroidBridge.saveBase64File(
+        result.fileName,
+        result.base64,
+        result.mimeType
+      );
+
+      alert("📊 Excel 파일이 다운로드 폴더에 저장되었습니다.\n\n파일명: "+result.fileName);
+    })
+    .withFailureHandler(function(err){
+      if(typeof hideLoading==="function")hideLoading();
+
+      console.error("❌ Excel 통신 실패:",err);
+
+      alert("❌ Excel 생성 실패: "+(err&&err.message?err.message:err));
+    })
+    .createDriverOrdersExcel(
+      driverId,
+      startDate,
+      endDate
+    );
+}
+
+// 오늘 날짜 자동 세팅
+document.addEventListener('DOMContentLoaded', function() {
+    var today = new Date().toISOString().split('T')[0];
+    var startEl = document.getElementById("driverExcelStart");
+    var endEl = document.getElementById("driverExcelEnd");
+    if (startEl && !startEl.value) startEl.value = today;
+    if (endEl && !endEl.value) endEl.value = today;
+});
+
+  // 서버에 통계를 요청하고 화면에 반영하는 함수
+  // 📊 방어 로직이 적용된 통계 업데이트 함수
+  function fetchAndUpdateStats() {
+      runServer("getTodayStats", [DRIVER_ID], function(res) {
+          if (!res) return;
+          
+          let stats;
+          try {
+              stats = typeof res === "string" ? JSON.parse(res) : res;
+          } catch(e) { 
+              return; 
+          }
+
+          if (!stats || typeof stats.waiting === 'undefined') return;
+
+          const statWaiting = document.getElementById("statWaitingCount");
+          const statActive = document.getElementById("statActiveCount");
+
+          if (statWaiting) statWaiting.innerText = (stats.waiting || 0) + "건";
+          if (statActive) statActive.innerText = (stats.active || 0) + "건";
+      });
+  }
+
+  // 인앱 브라우저 감지 유틸
+function isInAppBrowser() {
+    const ua = navigator.userAgent.toLowerCase();
+    return (ua.indexOf('kakaotalk') !== -1 || ua.indexOf('naver') !== -1 || ua.indexOf('instagram') !== -1 || ua.indexOf('fbav') !== -1);
+}
+
+  // ==========================================
+// 🚨 [최종 완성] 신규 및 재배정 통합 감지 (안내 문구 통일)
+// ==========================================
+var previousDriverOrderMap = {}; 
+var isDriverFirstLoad = true;
+
+function checkNewOrdersForDriver(orders) {
+    if (!Array.isArray(orders)) return;
+
+    let targetOrdersAlerts = []; // 신규 오더와 재배정 오더를 모두 담을 배열
+
+    for (let i = 0; i < orders.length; i++) {
+        let row = orders[i];
+        if (!row) continue;
+
+        let orderId = row[ORDER_COL.ORDER_ID];
+        if (!orderId) continue;
+
+        let rawStatus = String(row[ORDER_COL.STATUS] || "미확인").trim();
+        let globalStatus = rawStatus.replace(/\s+/g, "").trim();
+        
+        let sheetDriverRaw = String(row[ORDER_COL.DRIVER_ID] || "").trim();
+        let sheetDriverId = sheetDriverRaw.includes("|") ? sheetDriverRaw.split("|")[0] : sheetDriverRaw;
+        let assignType = String(row[ORDER_COL.ASSIGN_TYPE] || "").trim();
+
+        let isMine = false;
+        if (sheetDriverId !== "") {
+            isMine = (sheetDriverId === DRIVER_ID);
+        } else if (assignType.includes("선착순") || assignType === "") {
+            if (globalStatus.includes("미확인") || globalStatus.includes("대기")) {
+                isMine = true;
+            }
+        }
+
+        let oldData = previousDriverOrderMap[orderId]; 
+
+        if (!isDriverFirstLoad) {
+            // 1. 신규 오더 감지 (이전에 없던 오더)
+            let isNewOrder = (!oldData && isMine && (globalStatus.includes("미확인") || globalStatus.includes("신규")));
+            
+            // 2. 재배정 오더 감지 (이전엔 내 오더가 아니었거나 다른 기사였는데 나에게 온 경우)
+            let isRedispatch = false;
+            if (oldData) {
+                let wasMyOrderBefore = (oldData.driver === DRIVER_ID);
+                if (!wasMyOrderBefore && isMine) {
+                    isRedispatch = true;
+                }
+            }
+
+            // 신규이든 재배정이든 내게 새로 들어온 오더라면 리스트에 추가
+            if (isNewOrder || isRedispatch) {
+                let routeStr=String(row[ORDER_COL.ROUTE]||"경로 정보 없음").trim();
+                targetOrdersAlerts.push({id:orderId,route:routeStr.replace(/,/g," ➡️ ")});
+            }
+        }
+        
+        previousDriverOrderMap[orderId] = {
+            status: globalStatus,
+            driver: sheetDriverId || (isMine ? DRIVER_ID : "")
+        };
+    }
+
+    isDriverFirstLoad = false;
+
+    // 🚨 감지된 오더가 있다면 순서대로 실행 (문구는 모두 신규 오더로 통일)
+    if (targetOrdersAlerts.length > 0) {
+        
+        // 📍 팝업 메시지를 "신규 오더" 문구로 일괄 조합
+        let msg = "🚨 [신규 오더가 도착했습니다!]\n\n";
+        targetOrdersAlerts.forEach(item => {
+            msg += `🆔 주문번호: ${item.id}\n`;
+            msg += `📍 경로: ${item.route}\n`;
+            msg += `----------------------------------------\n`;
+        });
+        msg += "기사앱 관제판을 확인하고 배차를 수락해주세요!";
+
+        // 1단계: 딩동 딩동 딩동 딩동 (알림음 재생)
+        try { playAlertBeep(); } catch(e) {}
+
+        // 2단계: 1.2초 뒤 음성 안내 ("신규 오더가 도착했습니다")
+        setTimeout(() => {
+            try { speakText("tts_order_arrived"); } catch(e) {}
+        }, 1200);
+
+        // 3단계: 확인 버튼을 누를 수 있는 팝업창 띄우기
+        setTimeout(() => {
+            alert(msg);
+        }, 1400);
+    }
+}
+
+// ==========================================
+// 🔔 통합 알림음 엔진 (볼륨 증폭 + 4번 연속 재생)
+// ==========================================
+let audioContext = null;
+
+function playSingleBeep(ctx, timeOffset = 0) {
+    setTimeout(() => {
+        if (!ctx) return;
+        if (ctx.state === 'suspended') {
+            ctx.resume();
+        }
+
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.type = "sine";
+        // 딩-동 주파수 변화 (880Hz -> 1174.66Hz)
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(1174.66, ctx.currentTime + 0.15);
+        
+        // 💡 볼륨을 0.8로 높여 소리가 작지 않게 출력
+        gainNode.gain.setValueAtTime(0.8, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.start();
+        oscillator.stop(ctx.currentTime + 0.4);
+    }, timeOffset);
+}
+
+// ==========================================
+// 🔔 오더 도착 알림음 -> 기사님이 선택한 MP3 알림음 재생으로 변경
+// ==========================================
+function playAlertBeep() {
+    // 안드로이드 앱 브릿지를 통해 기사님이 고른 MP3 알림음 + 진동 실행
+    if (window.AndroidBridge && typeof window.AndroidBridge.playNewOrderAlert === 'function') {
+        window.AndroidBridge.playNewOrderAlert();
+    } else {
+        console.log("웹 환경 알림음 재생");
+    }
+}
+
+// ==========================================
+// 🗣️ 통합된 음성 출력 함수 (안드로이드 앱 WAV 파일 연동)
+// ==========================================
+function speakText(wavFileName) {
+    // 1. 안드로이드 앱 브릿지가 연결되어 있는 경우 -> 앱 내부의 고품질 WAV 파일 재생
+    if (window.AndroidBridge && typeof window.AndroidBridge.playWavVoice === 'function') {
+        try {
+            window.AndroidBridge.playWavVoice(wavFileName);
+        } catch (e) {
+            console.log("안드로이드 브릿지 WAV 재생 예외:", e);
+        }
+    } 
+    // 2. 브라우저(PC 등) 환경에서 테스트할 때의 대체용 웹 TTS
+    else if ('speechSynthesis' in window) {
+        try {
+            window.speechSynthesis.cancel();
+            
+            // WAV 파일 이름에 따라 웹 테스트용 텍스트 매칭
+            let textToSpeech = getWebTextForWav(wavFileName);
+            
+            const utterance = new SpeechSynthesisUtterance(textToSpeech);
+            utterance.lang = 'ko-KR';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+
+            window.speechSynthesis.speak(utterance);
+        } catch (e) {
+            console.log("웹 TTS 실행 예외:", e);
+        }
+    } else {
+        console.warn("오디오 재생 수단을 찾을 수 없습니다.");
+    }
+}
+
+// 💡 (참고) PC 브라우저로 테스트할 때 WAV 이름 대신 읽어줄 텍스트 매핑 헬퍼 함수
+function getWebTextForWav(fileName) {
+    switch(fileName) {
+        case "tts_drive_safely": return "안전운전 하세요";
+        case "tts_end_of_day": return "오늘 하루도 수고 하셨습니다";
+        case "tts_order_arrived": return "부름이 도착";
+        case "tts_delivery_completed": return "배송이 완료 되었습니다";
+        case "tts_good_job": return "수고하셨습니다";
+        case "tts_order_declined": return "오더가 거절되었습니다";
+        case "tts_order_accepted": return "오더가 수락되었습니다";
+        case "tts_done": return "완료";
+        case "tts_pickup": return "픽업";
+        default: return fileName;
+    }
+}
+
+// 비상용 오디오 알림 (음성 안 될 때 소리로 한 번 더 환기)
+function fallbackAudioAlert() {
+    try {
+        playAlertBeep();
+    } catch(err) {}
+}
+  
+  function onGpsError(err) { console.error("GPS Error", err); }
+  // 앱 자동 시작 바인딩
+  window.addEventListener("load", function() {
+      console.log("단일 통합 앱 초기화 시작");
+      initDriverApp();
+  });
+
+  // 설정 팝업 열기
+function openSoundSettings() {
+    let modal = document.getElementById('soundSettingsModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        
+        // 현재 앱에 저장된 알림음 값이 있다면 드롭박스 선택 상태를 동기화할 수 있습니다.
+        // (안드로이드 브릿지를 통해 현재 저장된 값을 가져오는 함수가 있다면 여기서 호출 가능)
+    }
+}
+
+// 설정 팝업 닫기
+function closeSoundSettings() {
+    let modal = document.getElementById('soundSettingsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// 선택한 알림음 저장하기 (안드로이드 브릿지 연동)
+function saveSoundSettings() {
+    let selectObj = document.getElementById('soundSelectDropdown');
+    let selectedSound = selectObj.value;
+
+    if (window.AndroidBridge && typeof window.AndroidBridge.setSelectedAlert === 'function') {
+        window.AndroidBridge.setSelectedAlert(selectedSound);
+        alert("알림음 설정이 저장되었습니다!");
+    } else {
+        alert("앱 환경(안드로이드)에서만 설정 저장이 지원됩니다.");
+    }
+    closeSoundSettings();
+}
+
+// 미리듣기 버튼 눌렀을 때
+function testPlayAlertSound() {
+    // 미리듣기를 위해 임시로 선택한 소리 재생 브릿지 호출
+    let selectObj = document.getElementById('soundSelectDropdown');
+    let selectedSound = selectObj.value;
+
+    if (window.AndroidBridge && typeof window.AndroidBridge.playWavVoice === 'function') {
+        // 임시 WAV 또는 선택된 소리 미리 재생
+        window.AndroidBridge.playWavVoice(selectedSound);
+    } else {
+        alert("PC 브라우저 환경에서는 미리듣기가 제한될 수 있습니다.");
+    }
+}
+
+  
+</script>
+    <div id="historyModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);z-index:99999;justify-content:center;align-items:center;"><div style="background:#1e293b;width:90%;max-width:500px;max-height:85vh;border-radius:12px;padding:20px;display:flex;flex-direction:column;color:white;position:relative;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;"><h3 style="font-size:18px;color:#60a5fa;">📦 배송완료 오더 내역</h3><button onclick="closeHistoryModal()" style="background:none;border:none;color:white;font-size:22px;cursor:pointer;">×</button></div><div style="display:flex;gap:8px;margin-bottom:10px;"><button id="historyTodayBtn" onclick="setHistoryDate('today')" style="flex:1;background:#2563eb;border:none;color:white;padding:9px;border-radius:7px;font-size:13px;">오늘</button><button id="historyYesterdayBtn" onclick="setHistoryDate('yesterday')" style="flex:1;background:#475569;border:none;color:white;padding:9px;border-radius:7px;font-size:13px;">어제</button><button id="historyAllBtn" onclick="setHistoryDate('all')" style="flex:1;background:#475569;border:none;color:white;padding:9px;border-radius:7px;font-size:13px;">전체</button></div><input type="date" id="historyDateInput" onchange="filterHistoryOrders(true)" style="margin-bottom:10px;background:#0f172a;border:1px solid #334155;color:white;padding:10px;border-radius:8px;width:100%;box-sizing:border-box;"><input type="text" id="historySearchInput" placeholder="주문번호 또는 경로 검색..." oninput="filterHistoryOrders(false)" style="margin-bottom:15px;background:#0f172a;border:1px solid #334155;color:white;padding:10px;border-radius:8px;width:100%;box-sizing:border-box;"><div id="historyCount" style="margin:-5px 0 10px;color:#94a3b8;font-size:13px;font-weight:bold;">🔎 검색 결과 총 0건</div><div id="historyListContainer" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px;"></div></div></div>
+</body>
+</html>

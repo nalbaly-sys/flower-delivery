@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>꽃배달 현장관제 (마스터)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style><?!= include("SubCSS"); ?></style>
+<style>
+@keyframes rejectBlink{0%{border-color:#ef4444;box-shadow:0 0 0 rgba(239,68,68,0)}50%{border-color:#ef4444;box-shadow:0 0 15px rgba(239,68,68,.7)}100%{border-color:#ef4444;box-shadow:0 0 0 rgba(239,68,68,0)}}
+.order-card-reject-alert{animation:rejectBlink 1.5s infinite;border:2px solid #ef4444!important}
+body{margin:0;padding:0;font-family:'Malgun Gothic',sans-serif;background-color:#f1f5f9;color:#1e293b}
+#header{background-color:#0f172a;color:#fff;padding:15px;font-size:18px;font-weight:bold;text-align:center;border-bottom:4px solid #f43f5e}
+#header span{display:block;font-size:11px;color:#94a3b8;font-weight:normal;margin-top:4px}
+.container{padding:12px;max-width:800px;margin:0 auto;box-sizing:border-box}
+.section-title{font-size:15px;font-weight:bold;color:#334155;margin:20px 0 10px;display:flex;align-items:center;gap:6px}
+.form-box{background:#fff;border-radius:8px;padding:15px;box-shadow:0 1px 3px rgba(0,0,0,.1);border:1px solid #e2e8f0}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:13px;font-weight:bold;margin-bottom:6px;color:#475569}
+.route-input-container{display:flex;gap:6px;margin-bottom:8px}
+.input-text{flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box;font-size:14px}
+.btn-add-route{background:#0f172a;color:#fff;border:0;padding:0 16px;font-weight:bold;border-radius:6px;cursor:pointer;font-size:13px}
+.added-route-list{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:8px;min-height:40px;display:flex;flex-direction:column;gap:4px}
+.route-chip{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #e2e8f0;padding:6px 10px;border-radius:4px;font-size:13px}
+.route-chip span{font-weight:bold;color:#334155}
+.btn-del-chip{background:none;border:0;color:#ef4444;font-weight:bold;cursor:pointer;font-size:14px;padding:0 4px}
+.empty-route-msg{color:#94a3b8;font-size:12px;text-align:center;padding:8px 0;margin:0}
+.select-control{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box;font-size:14px;background:#fff;font-weight:bold;color:#0f172a}
+.file-btn-layout{display:flex;gap:10px;align-items:center;margin-top:5px;flex-wrap:wrap}
+.btn-file-trigger{background:#475569;color:#fff;border:0;padding:10px 14px;font-size:13px;font-weight:bold;border-radius:6px;cursor:pointer}
+#fileStatus{font-size:12px;color:#64748b}
+#previewArea{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.submit-btn{width:100%;background:#f43f5e;color:#fff;border:0;padding:14px;font-size:15px;font-weight:bold;border-radius:6px;cursor:pointer;margin-top:10px}
+.submit-btn:hover{background:#e11d48}
+.submit-btn:disabled{background:#cbd5e1;color:#94a3b8;cursor:not-allowed}
+.order-card{background:#fff;border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);border:1px solid #e2e8f0;position:relative}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start}
+.order-id{font-weight:bold;font-size:12px;color:#0f172a;flex:1;min-width:0;word-break:break-all;white-space:normal}
+.status-badge{padding:4px 8px;border-radius:4px;color:#fff;font-size:11px;font-weight:bold}
+.st-미확인{background:#f59e0b}.st-수락{background:#3b82f6}.st-거절됨{background:#ef4444}.st-배송중{background:#8b5cf6}.st-배송완료{background:#10b981}
+.route-display{background:#f8fafc;border:1px solid #edf2f7;padding:10px;border-radius:6px;font-size:13px;color:#334155;margin:8px 0;line-height:1.6}
+.route-step{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:6px;font-weight:bold;border:1px solid transparent}
+.step-미픽업{color:#64748b;background:#f1f5f9;border-color:#cbd5e1}
+.step-픽업{color:#ea580c;background:#fffedd;border-color:#fed7aa}
+.step-배송완료{color:#15803d;background:#dcfce7;border-color:#bbf7d0}
+.bg-mi{background:#64748b}.bg-ing{background:#3b82f6}.bg-done{background:#10b981}.bg-reject{background:#dc2626}
+.card-footer{display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-top:8px;padding-top:6px;border-top:1px dashed #e2e8f0}
+.preview-link{color:#0284c7;font-weight:bold;text-decoration:none;cursor:pointer}
+</style>
+<style>
+#subLoginOverlay{display:none;position:fixed;inset:0;background:#020617;z-index:9999999;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+#subLoginOverlay .login-card{width:100%;max-width:390px;background:#1e293b;border:1px solid #475569;border-radius:18px;box-shadow:0 25px 80px rgba(0,0,0,.65);overflow:hidden}
+#subLoginOverlay .login-head{padding:28px 24px 22px;background:#0f172a;border-bottom:1px solid #334155;text-align:center}
+#subLoginOverlay .login-title{font-size:21px;font-weight:900;color:#fff}
+#subLoginOverlay .login-subtitle{font-size:12px;color:#94a3b8;margin-top:7px}
+#subLoginOverlay .login-body{padding:24px}
+#subLoginOverlay label{display:block;color:#cbd5e1;font-size:13px;font-weight:700;margin-bottom:6px}
+#subLoginOverlay input{width:100%;height:46px;box-sizing:border-box;padding:0 13px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:15px;outline:none}
+#subLoginOverlay .login-error{display:none;color:#fca5a5;background:#450a0a;border:1px solid #7f1d1d;border-radius:7px;padding:10px;font-size:12px;margin-bottom:12px;text-align:center}
+#subLoginOverlay button{width:100%;height:48px;border:0;border-radius:8px;background:#4f46e5;color:#fff;font-size:15px;font-weight:900;cursor:pointer}
+#subLoginOverlay button:disabled{opacity:.6;cursor:not-allowed}
+#subLoginOverlay .login-loading{display:none;text-align:center;color:#94a3b8;font-size:12px;margin-top:12px}
+#subControlBar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 15px;background:#111827;border-bottom:1px solid #334155;color:#fff}
+#subControlBar .sub-user{font-size:13px;color:#cbd5e1}
+#subControlBar .sub-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#subControlBar button{border:1px solid #475569;background:#1e293b;color:#fff;padding:8px 11px;border-radius:7px;cursor:pointer;font-size:14px}
+#subControlBar .logout{border-color:#7f1d1d;background:#450a0a;color:#fecaca;font-weight:700}
+.sub-alert-banner{position:fixed;right:18px;top:18px;z-index:10000000;min-width:280px;max-width:420px;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:12px;padding:14px 16px;box-shadow:0 15px 45px rgba(0,0,0,.45);display:none;font-size:13px;font-weight:700}
+.sub-alert-banner.accept{border-color:#22c55e}.sub-alert-banner.reject{border-color:#ef4444}.sub-alert-banner.complete{border-color:#10b981}
+#historyModal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);z-index:99999;justify-content:center;align-items:center}
+#historyModal .history-box{background:#1e293b;width:90%;max-width:560px;max-height:85vh;border-radius:12px;padding:20px;display:flex;flex-direction:column;color:white;position:relative;box-sizing:border-box}
+</style>
+<script>
+window.WEB_APP_URL="<?= WEB_APP_URL ?>";window.ADMIN_TOKEN="<?= ADMIN_TOKEN ?>";window.ADMIN_ID="<?= ADMIN_ID ?>";window.ADMIN_NAME="<?= ADMIN_NAME ?>";window.ADMIN_ROLE="<?= ADMIN_ROLE ?>";
+</script>
+</head>
+<?!= include("SubCommonJS"); ?>
+<body>
+<div id="subLoginOverlay">
+<div class="login-card">
+<div class="login-head"><div style="font-size:42px;margin-bottom:8px">👑</div><div class="login-title">꽃배달 종합 관제 시스템</div><div class="login-subtitle">SUBMASTER 관리자 로그인</div></div>
+<form id="subAdminLoginForm" class="login-body" onsubmit="performSubMasterLogin();return false">
+<div style="margin-bottom:13px"><label>관리자 ID</label><input id="subLoginId" type="text" autocomplete="username" placeholder="관리자 ID"></div>
+<div style="margin-bottom:15px"><label>비밀번호</label><input id="subLoginPassword" type="password" autocomplete="current-password" placeholder="비밀번호"></div>
+<div id="subLoginError" class="login-error"></div>
+<button type="submit" id="subLoginButton">🔐 로그인</button>
+<div id="subLoginLoading" class="login-loading">로그인 확인 중...</div>
+</form>
+</div>
+</div>
+
+<div id="subAppRoot" style="display:none">
+<div id="header">🏢 꽃배달 현장관제 시스템 <span>[마스터 전용 실시간 오더 제어 센터]</span></div>
+<div id="subControlBar">
+<div class="sub-user">👤 <b id="subAdminDisplayName"><?= ADMIN_NAME ?></b> <span style="color:#818cf8">[SUBMASTER]</span></div>
+<div class="sub-actions">
+<button type="button" id="subRefreshButton" onclick="manualSubMasterRefresh()" title="전체 새로고침">🔄</button>
+<button type="button" onclick="openSubSoundSettings()" title="알림음 설정">🔔</button>
+<button type="button" onclick="subMasterLogout()" class="logout">로그아웃</button>
+</div>
+</div>
+
+<?!= include("Master"); ?>
+
+<div class="container">
+<div class="section-title">✍️ 신규 복합 오더 발송 등록</div>
+<div class="form-box">
+
+<div class="form-group">
+<label>📍 배송 루트 빌더 (순서대로 장소를 추가해 주세요)</label>
+<div class="form-group">
+<label>📦 상품명</label>
+<input type="text" id="productName" class="input-text" placeholder="예 : 꽃다발, 근조화환, 축하화환">
+</div>
+<div class="route-input-container">
+<input type="text" id="routeItemInput" class="input-text" placeholder="예: 오플 경상대2 12시까지 (입력 후 우측 추가 클릭)" onkeydown="if(event.key==='Enter'){event.preventDefault();addRouteChip()}">
+<button type="button" class="btn-add-route" onclick="addRouteChip()">➕ 추가</button>
+</div>
+<div id="addedRouteList" class="added-route-list"><p class="empty-route-msg" id="emptyMsg">추가된 배송 주소가 없습니다. 위 상자에서 등록해 주세요.</p></div>
+</div>
+
+<div class="form-group">
+<label>🚖 배차 방식 및 대상 기사 선택 (실시간 명단)</label>
+<select id="assignTypeSelect" class="select-control"><option value="">🚖 기사 선택</option></select>
+</div>
+
+<div class="form-group">
+<label>📸 배송 전표 및 사진 파일 첨부 (선택)</label>
+<div class="file-btn-layout">
+<button type="button" class="btn-file-trigger" onclick="document.getElementById('hiddenFile').click()">📂 파일 선택</button>
+<span id="fileStatus">선택된 파일 없음</span>
+</div>
+<input type="file" id="hiddenFile" multiple accept="image/*" capture="environment" style="display:none" onchange="handleFileChange(this)">
+<div id="previewArea"></div>
+</div>
+
+<button type="button" id="btnSubmitOrder" class="submit-btn" onclick="submitCompositeOrder()">🚀 관제판에 오더 등록발송</button>
+</div>
+
+<div id="driverStatusBox" style="background:#1e293b;padding:12px;margin-bottom:10px;border-radius:8px;color:white;font-weight:bold;text-align:center">기사 현황 로딩중...</div>
+
+<div class="section-title">📊 실시간 오더 관제 현황판 (10초 자동 갱신)</div>
+<div style="background:#1e293b;padding:12px;border-radius:8px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid #334155">
+<span style="font-size:13px;font-weight:bold;color:#f8fafc">📥 엑셀 기간 선택:</span>
+<input type="date" id="excelStartDate" class="input-text" style="width:140px;padding:6px;font-size:13px;background:#0f172a;color:#f8fafc;border:1px solid #334155;cursor:pointer">
+<span style="font-weight:bold;color:#94a3b8">~</span>
+<input type="date" id="excelEndDate" class="input-text" style="width:140px;padding:6px;font-size:13px;background:#0f172a;color:#f8fafc;border:1px solid #334155;cursor:pointer">
+<button type="button" onclick="downloadAllDriversExcel(event)" style="padding:7px 12px;border:0;border-radius:6px;background:#16a34a;color:#fff;font-weight:bold;cursor:pointer">📥 전체 기사 Excel</button>
+</div>
+
+<div style="padding:10px;display:flex;gap:8px;align-items:center;box-sizing:border-box">
+<input type="text" id="searchKeyword" class="input-text" placeholder="오플, 기사명, 기사ID 검색" style="flex:1;min-width:0">
+<button type="button" onclick="openHistoryModal()" style="background:#475569!important;color:#fff;border:0;padding:10px 12px;border-radius:6px;font-weight:bold;cursor:pointer;white-space:nowrap">📜 배송완료 내역 조회</button>
+</div>
+
+<div id="orderContainer"><p style="text-align:center;padding:30px;color:#64748b;font-size:13px">오더 데이터를 동기화하고 있습니다...</p></div>
+</div>
+
+<?!= include("MasterOrderCore"); ?>
+
+<script>
+var globalRouteArray=[];var MASTER_UPLOAD_FILES=[];var lastOrderDataHash="";var previousOrderStatusMap={};var isFirstLoad=true;
+
+function renderRouteChips(){
+var c=document.getElementById("addedRouteList");if(!c)return;
+if(!globalRouteArray.length){c.innerHTML='<p class="empty-route-msg" id="emptyMsg">추가된 배송 주소가 없습니다.</p>';return}
+var h="";globalRouteArray.forEach(function(addr,index){h+='<div class="route-chip"><span>📍 '+(index+1)+'. '+escapeHtmlSafe(addr)+'</span><button type="button" class="btn-del-chip btn-remove-chip" data-index="'+index+'">×</button></div>'});
+c.innerHTML=h;c.querySelectorAll(".btn-remove-chip").forEach(function(btn){btn.addEventListener("click",function(){var idx=parseInt(this.getAttribute("data-index"),10);if(!isNaN(idx)){globalRouteArray.splice(idx,1);renderRouteChips()}})})
+}
+
+function escapeHtmlSafe(v){
+return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+}
+
+function addRouteChip(){
+var el=document.getElementById("routeItemInput");if(!el)return;
+var val=el.value.trim();if(!val){alert("배송 주소를 입력해주세요.");return}
+globalRouteArray.push(val);renderRouteChips();el.value="";el.focus();
+}
+
+function handleFileChange(input){
+MASTER_UPLOAD_FILES=Array.from(input&&input.files||[]);
+var status=document.getElementById("fileStatus"),area=document.getElementById("previewArea");
+if(status)status.innerText=MASTER_UPLOAD_FILES.length?MASTER_UPLOAD_FILES.length+"개 사진 선택됨":"선택된 파일 없음";
+if(!area)return;
+area.innerHTML="";
+MASTER_UPLOAD_FILES.forEach(function(file,index){
+var reader=new FileReader();
+reader.onload=function(e){
+var box=document.createElement("div");
+box.style.cssText="position:relative;width:75px;height:75px;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;background:#fff";
+var img=document.createElement("img");img.src=e.target.result;img.style.cssText="width:100%;height:100%;object-fit:cover";
+var del=document.createElement("button");del.type="button";del.innerText="×";del.setAttribute("data-index",index);del.style.cssText="position:absolute;right:2px;top:2px;border:0;background:#ef4444;color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;font-weight:bold;cursor:pointer;display:flex;align-items:center;justify-content:center";
+del.onclick=function(){var idx=parseInt(this.getAttribute("data-index"),10);if(!isNaN(idx)){MASTER_UPLOAD_FILES.splice(idx,1);syncFileInput();}};
+box.appendChild(img);box.appendChild(del);area.appendChild(box);
+};
+reader.readAsDataURL(file);
+});
+}
+
+function syncFileInput(){
+var input=document.getElementById("hiddenFile");if(!input)return;
+try{var dt=new DataTransfer();MASTER_UPLOAD_FILES.forEach(function(f){dt.items.add(f)});input.files=dt.files}catch(e){}
+handleFileChange(input);
+}
+
+function convertFileToBase64(file){
+    return new Promise(function(resolve,reject){
+        if(!file){reject(new Error("파일이 없습니다."));return;}
+        if(!file.type||!file.type.startsWith("image/")){
+            var reader=new FileReader();
+            reader.onload=function(e){
+                var data=String(e.target.result||"");
+                resolve({name:file.name,mime:file.type,base64:data.indexOf(",")>=0?data.split(",")[1]:data});
+            };
+            reader.onerror=function(){reject(reader.error||new Error("파일 읽기 실패"));};
+            reader.readAsDataURL(file);
+            return;
+        }
+
+        var img=new Image();
+        var reader=new FileReader();
+
+        reader.onload=function(e){
+            img.onload=function(){
+                var maxSize=1280;
+                var w=img.naturalWidth;
+                var h=img.naturalHeight;
+
+                if(w>maxSize||h>maxSize){
+                    if(w>=h){
+                        h=Math.round(h*maxSize/w);
+                        w=maxSize;
+                    }else{
+                        w=Math.round(w*maxSize/h);
+                        h=maxSize;
+                    }
+                }
+
+                var canvas=document.createElement("canvas");
+                canvas.width=w;
+                canvas.height=h;
+
+                var ctx=canvas.getContext("2d");
+                ctx.drawImage(img,0,0,w,h);
+
+                var dataUrl=canvas.toDataURL("image/jpeg",0.78);
+
+                resolve({
+                    name:file.name.replace(/\.[^.]+$/,"")+".jpg",
+                    mime:"image/jpeg",
+                    base64:dataUrl.split(",")[1]
+                });
+            };
+
+            img.onerror=function(){reject(new Error("이미지 변환 실패"));};
+            img.src=e.target.result;
+        };
+
+        reader.onerror=function(){reject(reader.error||new Error("파일 읽기 실패"));};
+        reader.readAsDataURL(file);
+    });
+}
+
+function getUploadFiles(){
+if(!MASTER_UPLOAD_FILES.length)return Promise.resolve([]);
+return Promise.all(MASTER_UPLOAD_FILES.map(convertFileToBase64));
+}
+
+function submitCompositeOrder(){
+var productEl=document.getElementById("productName"),assignEl=document.getElementById("assignTypeSelect"),btn=document.getElementById("btnSubmitOrder");
+var productName=productEl?productEl.value.trim():"",assignType=assignEl?assignEl.value:"";
+if(!productName){alert("상품명을 입력해주세요.");if(productEl)productEl.focus();return}
+if(!globalRouteArray.length){alert("배송 루트(주소)를 최소 1개 이상 추가해주세요.");var r=document.getElementById("routeItemInput");if(r)r.focus();return}
+if(!btn)return;
+btn.disabled=true;btn.innerText="⏳ 오더 전송 중...";
+getUploadFiles().then(function(photoArray){
+var orderData={productName:productName,routes:globalRouteArray.slice(),assignType:assignType,photos:photoArray};
+if(typeof google==="undefined"||!google.script||!google.script.run){alert("GAS 서버 통신 환경이 아닙니다.");btn.disabled=false;btn.innerText="🚀 관제판에 오더 등록발송";return}
+google.script.run.withSuccessHandler(function(res){
+alert("🚀 오더가 성공적으로 관제판에 등록되었습니다!");
+if(productEl)productEl.value="";
+if(assignEl&&assignEl.options.length)assignEl.selectedIndex=0;
+globalRouteArray=[];renderRouteChips();MASTER_UPLOAD_FILES=[];
+var fileInput=document.getElementById("hiddenFile");if(fileInput)fileInput.value="";
+var area=document.getElementById("previewArea");if(area)area.innerHTML="";
+var status=document.getElementById("fileStatus");if(status)status.innerText="선택된 파일 없음";
+btn.disabled=false;btn.innerText="🚀 관제판에 오더 등록발송";lastOrderDataHash="";refreshOrderDashboard();
+}).withFailureHandler(function(err){
+alert("❌ 오더 등록 실패: "+((err&&err.message)||err));btn.disabled=false;btn.innerText="🚀 관제판에 오더 등록발송";
+}).registerCompositeOrder(orderData);
+}).catch(function(err){
+alert("❌ 파일 처리 실패: "+((err&&err.message)||err));btn.disabled=false;btn.innerText="🚀 관제판에 오더 등록발송";
+});
+}
+
+function loadLiveDriverList(isBackground){
+var statusBox=document.getElementById("driverStatusBox");
+if(typeof google==="undefined"||!google.script||!google.script.run)return;
+google.script.run.withSuccessHandler(function(data){
+try{
+if(!data)return;
+var drivers=typeof data==="string"?JSON.parse(data):data;if(!Array.isArray(drivers))drivers=[];
+window.MASTER_DRIVER_CACHE=drivers;window.DRIVER_CACHE=drivers;
+var totalCount=drivers.length,workingCount=drivers.filter(function(d){return(d.status||d[2])==="근무중"}).length;
+if(statusBox){
+var h="👨‍✈️ 전체 기사: <b>"+totalCount+"명</b> | 🟢 근무중: <span style='color:#4ade80'><b>"+workingCount+"명</b></span><br>";
+h+="<div style='font-size:12px;margin-top:6px;color:#cbd5e1;display:flex;flex-wrap:wrap;gap:6px;justify-content:center'>";
+drivers.forEach(function(d){var name=d.name||d[1]||"이름없음",st=d.status||d[2]||"대기",bc=st==="근무중"?"#22c55e":"#64748b";h+="<span style='background:"+bc+";padding:2px 8px;border-radius:10px;font-size:11px'>"+escapeHtmlSafe(name)+" ("+escapeHtmlSafe(st)+")</span>"});h+="</div>";statusBox.innerHTML=h;
+}
+var assignSelect=document.getElementById("assignTypeSelect");
+if(assignSelect){
+var currentVal=assignSelect.value,html="<optgroup label='🚖 등록된 기사 개별 지정'>";
+drivers.forEach(function(d){var id=d.id||d[0]||"",name=d.name||d[1]||"기사",st=d.status||d[2]||"퇴근함";if(id)html+="<option value='"+escapeHtmlSafe(id)+"|"+escapeHtmlSafe(name)+"'>["+escapeHtmlSafe(st)+"] "+escapeHtmlSafe(name)+"</option>"});html+="</optgroup>";
+assignSelect.innerHTML=html;
+if(currentVal&&Array.from(assignSelect.options).some(function(o){return o.value===currentVal;}))assignSelect.value=currentVal;
+if(!assignSelect.value&&assignSelect.options.length)assignSelect.selectedIndex=0;
+}
+var redispatchOptionsHtml="<option value='' disabled selected>-- 기사 선택 후 재배차 --</option>";
+drivers.forEach(function(d){var id=d.id||d[0]||"",name=d.name||d[1]||"",st=d.status||d[2]||"퇴근함";if(id)redispatchOptionsHtml+="<option value='"+escapeHtmlSafe(id)+"|"+escapeHtmlSafe(name)+"'>"+escapeHtmlSafe(name)+" ("+escapeHtmlSafe(st)+")</option>"});
+document.querySelectorAll("[id^='redispatch-select-']").forEach(function(el){var current=el.value;el.innerHTML=redispatchOptionsHtml;if(current)el.value=current});
+}catch(e){console.error("기사 데이터 파싱 에러:",e)}
+}).withFailureHandler(function(err){console.error("기사 목록 로딩 실패:",err)}).getDriverList();
+}
+
+function downloadOrderExcel(){
+var start=document.getElementById("excelStartDate"),end=document.getElementById("excelEndDate");start=start?start.value:"";end=end?end.value:"";
+if(!start||!end){alert("조회할 시작일과 종료일을 모두 선택해주세요.");return}
+if(start>end){alert("시작일이 종료일보다 늦을 수 없습니다.");return}
+google.script.run.withSuccessHandler(function(result){
+if(typeof result==="string"&&result.indexOf("ERROR")===0){alert("서버 에러 발생: "+result);return}
+if(!result||!result.length){alert("해당 기간에 등록된 오더 내역이 없습니다.");return}
+var csv="\uFEFF오더ID,상품명,경로,담당기사이름,등록시간\r\n";
+result.forEach(function(o){var row=[o.id,o.productName,o.route,o.driverName,o.regTime].map(function(v){return '"'+String(v||"").replace(/"/g,'""')+'"'});csv+=row.join(",")+"\r\n"});
+var blob=new Blob([csv],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="오더내역_"+start+"_to_"+end+".csv";document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url)},1000);
+alert("📊 총 "+result.length+"개의 오더 내역이 다운로드되었습니다.");
+}).withFailureHandler(function(err){alert("❌ 통신 실패: "+((err&&err.message)||err))}).fetchOrdersForExcel(start,end);
+}
+
+document.addEventListener("DOMContentLoaded",function(){
+var now=new Date(),today=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().split("T")[0];
+var start=document.getElementById("excelStartDate"),end=document.getElementById("excelEndDate");if(start)start.value=today;if(end)end.value=today;
+var search=document.getElementById("searchKeyword");if(search)search.addEventListener("keyup",function(){lastOrderDataHash="";refreshOrderDashboard()});
+if(typeof loadLiveDriverList==="function")loadLiveDriverList(false);
+if(typeof refreshOrderDashboard==="function")refreshOrderDashboard();
+setInterval(function(){if(typeof loadLiveDriverList==="function")loadLiveDriverList(true);if(typeof refreshOrderDashboard==="function")refreshOrderDashboard()},10000);
+});
+</script>
+</div>
+
+<script>
+(function(){
+var SUB_TOKEN_KEY="SUBMASTER_SESSION_TOKEN",SUB_ID_KEY="SUBMASTER_ID",SUB_NAME_KEY="SUBMASTER_NAME",SUB_ROLE_KEY="SUBMASTER_ROLE";
+var previousSubOrderStatusMap={},subOrderFirstLoad=true,subAlertTimer=null;
+function S(id){return document.getElementById(id)}
+function setSubLoginError(msg){var b=S("subLoginError");if(!b)return;b.innerText=msg||"";b.style.display=msg?"block":"none"}
+function subLoginBusy(flag){var b=S("subLoginButton"),l=S("subLoginLoading");if(b){b.disabled=flag;b.innerText=flag?"🔐 로그인 확인 중...":"🔐 로그인"}if(l)l.style.display=flag?"block":"none"}
+function showSubLogin(){var o=S("subLoginOverlay"),a=S("subAppRoot");if(o)o.style.display="flex";if(a)a.style.display="none";setTimeout(function(){if(S("subLoginId"))S("subLoginId").focus()},100)}
+function hideSubLogin(){var o=S("subLoginOverlay"),a=S("subAppRoot");if(o)o.style.display="none";if(a)a.style.display="block"}
+window.getSubMasterToken=function(){return window.ADMIN_TOKEN||localStorage.getItem(SUB_TOKEN_KEY)||""};
+
+window.performSubMasterLogin=function(){
+var id=(S("subLoginId")&&S("subLoginId").value||"").trim(),pw=(S("subLoginPassword")&&S("subLoginPassword").value||"");
+if(!id){setSubLoginError("관리자 ID를 입력해주세요.");return}
+if(!pw){setSubLoginError("비밀번호를 입력해주세요.");return}
+setSubLoginError("");subLoginBusy(true);
+google.script.run.withSuccessHandler(function(res){
+subLoginBusy(false);
+if(!res||!res.success){setSubLoginError((res&&res.message)||"로그인에 실패했습니다.");return}
+if(String(res.role||"").toUpperCase()!=="SUBMASTER"){setSubLoginError("SUBMASTER 권한이 없는 계정입니다.");return}
+window.ADMIN_TOKEN=res.token||res.sessionToken||"";window.ADMIN_ID=res.id||id;window.ADMIN_NAME=res.name||"";window.ADMIN_ROLE=res.role||"SUBMASTER";
+localStorage.setItem(SUB_TOKEN_KEY,window.ADMIN_TOKEN);localStorage.setItem(SUB_ID_KEY,window.ADMIN_ID);localStorage.setItem(SUB_NAME_KEY,window.ADMIN_NAME);localStorage.setItem(SUB_ROLE_KEY,window.ADMIN_ROLE);
+if(window.AndroidBridge&&typeof window.AndroidBridge.setAdminId==="function")window.AndroidBridge.setAdminId(window.ADMIN_ID);
+if(S("subAdminDisplayName"))S("subAdminDisplayName").innerText=window.ADMIN_NAME||window.ADMIN_ID;
+hideSubLogin();startSubMasterApp(true);
+}).withFailureHandler(function(err){subLoginBusy(false);setSubLoginError("로그인 통신 오류: "+((err&&err.message)||err))}).verifyAdminLogin(id,pw);
+};
+
+function restoreSubMasterSession(){
+var token=localStorage.getItem(SUB_TOKEN_KEY)||window.ADMIN_TOKEN||"",id=localStorage.getItem(SUB_ID_KEY)||window.ADMIN_ID||"";
+if(!token||!id){showSubLogin();return}
+subLoginBusy(true);
+google.script.run.withSuccessHandler(function(res){
+subLoginBusy(false);
+if(!res||!res.success||String(res.role||"").toUpperCase()!=="SUBMASTER"){
+[SUB_TOKEN_KEY,SUB_ID_KEY,SUB_NAME_KEY,SUB_ROLE_KEY].forEach(function(k){localStorage.removeItem(k)});window.ADMIN_TOKEN="";showSubLogin();return
+}
+window.ADMIN_TOKEN=token;window.ADMIN_ID=res.id||id;window.ADMIN_NAME=res.name||localStorage.getItem(SUB_NAME_KEY)||"";window.ADMIN_ROLE="SUBMASTER";
+if(window.AndroidBridge&&typeof window.AndroidBridge.setAdminId==="function")window.AndroidBridge.setAdminId(window.ADMIN_ID);
+if(S("subAdminDisplayName"))S("subAdminDisplayName").innerText=window.ADMIN_NAME||window.ADMIN_ID;
+hideSubLogin();startSubMasterApp(false);
+}).withFailureHandler(function(){subLoginBusy(false);showSubLogin()}).verifyAdminSession(token,"SUBMASTER");
+}
+
+window.startSubMasterApp=function(resetAlertBaseline){
+if(window.subMasterStarted){if(resetAlertBaseline)subOrderFirstLoad=true;return}
+window.subMasterStarted=true;if(resetAlertBaseline)subOrderFirstLoad=true;
+try{if(typeof loadLiveDriverList==="function")loadLiveDriverList()}catch(e){console.error(e)}
+try{if(typeof loadDriverStatus==="function")loadDriverStatus()}catch(e){console.error(e)}
+try{if(typeof refreshOrderDashboard==="function")refreshOrderDashboard()}catch(e){console.error(e)}
+var start=S("excelStartDate"),end=S("excelEndDate"),today=new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().split("T")[0];if(start&&!start.value)start.value=today;if(end&&!end.value)end.value=today;
+pollSubMasterOrderAlerts();
+if(!window.subMasterPollTimer)window.subMasterPollTimer=setInterval(function(){try{refreshOrderDashboard()}catch(e){}try{loadDriverStatus()}catch(e){}try{pollSubMasterOrderAlerts()}catch(e){}},10000);
+};
+
+function showSubAlert(title,message,type){
+var box=S("subAlertBanner");if(!box)return;
+box.className="sub-alert-banner "+(type||"");box.innerHTML="<div style='font-size:15px;margin-bottom:5px'>"+title+"</div><div style='font-weight:500;color:#cbd5e1;line-height:1.5'>"+message+"</div>";box.style.display="block";
+clearTimeout(subAlertTimer);subAlertTimer=setTimeout(function(){box.style.display="none"},5000);
+}
+
+function playSubAlertSound(){
+try{
+if(window.AndroidBridge&&typeof window.AndroidBridge.getSelectedAlert==="function"&&typeof window.AndroidBridge.playWavVoice==="function"){var s=window.AndroidBridge.getSelectedAlert();if(s)window.AndroidBridge.playWavVoice(s);return}
+}catch(e){}
+var a=S("alertSound");if(a){try{a.currentTime=0;a.play().catch(function(){})}catch(e){}}
+}
+
+function pollSubMasterOrderAlerts(){
+if(!window.subMasterStarted)return;
+google.script.run.withSuccessHandler(function(raw){
+try{
+var orders=typeof raw==="string"?JSON.parse(raw):raw;if(!Array.isArray(orders))return;
+var events=[];
+for(var i=0;i<orders.length;i++){
+var row=orders[i];if(!row)continue;
+var id=String(row[0]||"").trim();if(!id)continue;
+var status=String(row[7]||"미확인").trim(),old=previousSubOrderStatusMap[id];
+if(!subOrderFirstLoad&&old!==undefined&&old!==status){
+if(status==="수락")events.push({type:"accept",title:"🟢 기사 오더 수락",msg:"["+id+"] 오더가 수락되었습니다."});
+else if(status==="거절"||status==="거절됨"||status==="배차거절")events.push({type:"reject",title:"🔴 기사 오더 거절",msg:"["+id+"] 오더가 거절되었습니다."});
+else if(status==="배송완료")events.push({type:"complete",title:"✅ 배송 완료",msg:"["+id+"] 배송이 완료되었습니다."});
+}
+previousSubOrderStatusMap[id]=status;
+}
+subOrderFirstLoad=false;events.forEach(function(ev){playSubAlertSound();showSubAlert(ev.title,ev.msg,ev.type)});
+}catch(e){console.error("SUB ALERT PARSE ERROR",e)}
+}).withFailureHandler(function(err){console.error("SUB ALERT SYNC FAIL",err)}).getOrdersData();
+}
+
+window.manualSubMasterRefresh=function(){
+var b=S("subRefreshButton");if(b){b.disabled=true;b.innerText="⏳"}
+try{if(typeof loadLiveDriverList==="function")loadLiveDriverList()}catch(e){}
+try{if(typeof loadDriverStatus==="function")loadDriverStatus()}catch(e){}
+try{if(typeof refreshOrderDashboard==="function")refreshOrderDashboard()}catch(e){}
+try{pollSubMasterOrderAlerts()}catch(e){}
+setTimeout(function(){if(b){b.disabled=false;b.innerText="🔄"}},1200);
+};
+
+window.downloadAllDriversExcel=function(event){
+var start=S("excelStartDate")?S("excelStartDate").value:"",end=S("excelEndDate")?S("excelEndDate").value:"";
+if(!start||!end){alert("조회할 시작일과 종료일을 선택해주세요.");return}
+if(start>end){alert("시작일이 종료일보다 늦을 수 없습니다.");return}
+var btn=event&&event.target?event.target:null;if(btn){btn.disabled=true;btn.textContent="⏳ 생성중..."}
+google.script.run.withSuccessHandler(function(result){
+if(btn){btn.disabled=false;btn.textContent="📥 전체 기사 Excel"}
+if(!result){alert("Excel 생성 결과가 없습니다.");return}
+if(typeof result==="string"&&result.indexOf("ERROR:")===0){alert(result);return}
+if(!result.base64||!result.fileName){alert("Excel 데이터가 올바르지 않습니다.");return}
+if(window.AndroidBridge&&typeof AndroidBridge.downloadExcel==="function"){AndroidBridge.downloadExcel(result.fileName,result.base64,result.mimeType||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");return}
+try{
+var binary=atob(result.base64),bytes=new Uint8Array(binary.length);for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+var blob=new Blob([bytes],{type:result.mimeType||"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=result.fileName;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url)},1000);
+}catch(e){alert("Excel 다운로드 중 오류가 발생했습니다.")}
+}).withFailureHandler(function(err){if(btn){btn.disabled=false;btn.textContent="📥 전체 기사 Excel"}alert("Excel 다운로드 중 오류가 발생했습니다.\n"+((err&&err.message)||err))}).createAllDriversOrdersExcel(start,end);
+};
+
+window.openSubSoundSettings=function(){var m=S("subSoundSettingsModal");if(m){m.style.display="flex";var d=S("subSoundSelectDropdown");if(d&&window.AndroidBridge&&typeof AndroidBridge.getSelectedAlert==="function"){var v=AndroidBridge.getSelectedAlert();if(v)d.value=v}}else{alert("알림음 설정 창을 찾을 수 없습니다.")}};
+window.closeSubSoundSettings=function(){var m=S("subSoundSettingsModal");if(m)m.style.display="none"};
+window.testSubAlertSound=function(){var d=S("subSoundSelectDropdown"),v=d?d.value:"";if(!v)return;try{if(window.AndroidBridge&&typeof AndroidBridge.playWavVoice==="function"){AndroidBridge.playWavVoice(v);return}}catch(e){}playSubAlertSound()};
+window.saveSubSoundSettings=function(){var d=S("subSoundSelectDropdown"),v=d?d.value:"";if(!v){alert("알림음을 선택해주세요.");return}try{if(window.AndroidBridge&&typeof window.AndroidBridge.setSelectedAlert==="function")window.AndroidBridge.setSelectedAlert(v)}catch(e){}try{localStorage.setItem("SUBMASTER_ALERT_SOUND",v)}catch(e){}alert("🔔 알림음 설정이 저장되었습니다.");closeSubSoundSettings()};
+
+window.subMasterLogout=function(){
+if(!confirm("로그아웃 하시겠습니까?"))return;
+var token=window.getSubMasterToken();
+google.script.run.withSuccessHandler(function(){finishLogout()}).withFailureHandler(function(){finishLogout()}).logoutAdmin(token);
+};
+
+function finishLogout(){
+[SUB_TOKEN_KEY,SUB_ID_KEY,SUB_NAME_KEY,SUB_ROLE_KEY].forEach(function(k){localStorage.removeItem(k)});
+window.ADMIN_TOKEN="";window.ADMIN_ID="";window.ADMIN_NAME="";window.ADMIN_ROLE="";window.subMasterStarted=false;
+if(window.subMasterPollTimer){clearInterval(window.subMasterPollTimer);window.subMasterPollTimer=null}
+showSubLogin();
+}
+
+document.addEventListener("DOMContentLoaded",function(){
+var id=S("subLoginId"),pw=S("subLoginPassword");
+if(id)id.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();if(pw)pw.focus()}});
+if(pw)pw.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();performSubMasterLogin()}});
+setTimeout(restoreSubMasterSession,50);
+});
+})();
+</script>
+
+<!-- 배송완료 내역 조회 -->
+<div id="historyModal">
+<div class="history-box">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">
+<h3 style="font-size:18px;color:#60a5fa;margin:0">📦 배송완료 오더 내역</h3>
+<button type="button" onclick="closeHistoryModal()" style="background:none;border:none;color:white;font-size:22px;cursor:pointer">×</button>
+</div>
+<div style="display:flex;gap:8px;margin-bottom:10px">
+<button type="button" id="historyTodayBtn" onclick="setHistoryDate('today')" style="flex:1;background:#2563eb;border:none;color:white;padding:9px;border-radius:7px;font-size:13px;cursor:pointer">오늘</button>
+<button type="button" id="historyYesterdayBtn" onclick="setHistoryDate('yesterday')" style="flex:1;background:#475569;border:none;color:white;padding:9px;border-radius:7px;font-size:13px;cursor:pointer">어제</button>
+<button type="button" id="historyAllBtn" onclick="setHistoryDate('all')" style="flex:1;background:#475569;border:none;color:white;padding:9px;border-radius:7px;font-size:13px;cursor:pointer">전체</button>
+</div>
+<input type="date" id="historyDateInput" onchange="filterHistoryOrders(true)" style="margin-bottom:10px;background:#0f172a;border:1px solid #334155;color:white;padding:10px;border-radius:8px;width:100%;box-sizing:border-box">
+<input type="text" id="historySearchInput" placeholder="주문번호 / 경로 / 상품명 / 기사이름 검색..." oninput="filterHistoryOrders(false)" style="margin-bottom:8px;background:#0f172a;border:1px solid #334155;color:white;padding:10px;border-radius:8px;width:100%;box-sizing:border-box">
+<div id="historyCount" style="font-size:12px;color:#60a5fa;font-weight:bold;margin-bottom:10px">🔎 검색 결과 총 0건</div>
+<div id="historyListContainer" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px"></div>
+</div>
+</div>
+
+<script>
+var cachedOrdersForHistory=[];
+
+function openHistoryModal(){
+var modal=document.getElementById("historyModal");
+if(modal)modal.style.display="flex";
+var search=document.getElementById("historySearchInput");
+if(search)search.value="";
+loadHistoryOrders();
+}
+
+function closeHistoryModal(){
+var modal=document.getElementById("historyModal");
+if(modal)modal.style.display="none";
+}
+
+function loadHistoryOrders(){
+if(typeof google==="undefined"||!google.script||!google.script.run)return;
+google.script.run.withSuccessHandler(function(raw){
+if(!raw)return;
+var orders=[];
+try{orders=typeof raw==="string"?JSON.parse(raw):raw}catch(e){console.error("배송완료 내역 파싱 실패:",e);return}
+cachedOrdersForHistory=[];
+for(var i=0;i<orders.length;i++){
+var row=orders[i];
+if(!row)continue;
+var status=String(row[7]||"").trim();
+if(status==="배송완료")cachedOrdersForHistory.push(row);
+}
+setHistoryDate("today");
+}).withFailureHandler(function(err){
+console.error("배송완료 내역 조회 실패:",err);
+alert("❌ 배송완료 내역을 불러오지 못했습니다.");
+}).getOrdersData();
+}
+
+function getHistoryDriverName(driverId){
+driverId=String(driverId||"").trim();
+if(!driverId)return"-";
+var drivers=window.MASTER_DRIVER_CACHE||window.DRIVER_CACHE||[];
+if(Array.isArray(drivers)){
+for(var i=0;i<drivers.length;i++){
+var d=drivers[i];
+var id=String(d.id||d[0]||"").trim();
+if(id===driverId)return String(d.name||d[1]||driverId);
+}
+}
+return driverId;
+}
+
+function setHistoryDate(type){
+var input=document.getElementById("historyDateInput");
+if(!input)return;
+var todayBtn=document.getElementById("historyTodayBtn");
+var yesterdayBtn=document.getElementById("historyYesterdayBtn");
+var allBtn=document.getElementById("historyAllBtn");
+if(todayBtn)todayBtn.style.background="#475569";
+if(yesterdayBtn)yesterdayBtn.style.background="#475569";
+if(allBtn)allBtn.style.background="#475569";
+
+if(type==="all"){
+input.value="";
+if(allBtn)allBtn.style.background="#2563eb";
+filterHistoryOrders(false);
+return;
+}
+
+var d=new Date();
+if(type==="yesterday"){
+d.setDate(d.getDate()-1);
+if(yesterdayBtn)yesterdayBtn.style.background="#2563eb";
+}else{
+if(todayBtn)todayBtn.style.background="#2563eb";
+}
+input.value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+filterHistoryOrders(false);
+}
+
+function filterHistoryData(){
+var dateValue=document.getElementById("historyDateInput")?.value||"";
+var keyword=(document.getElementById("historySearchInput")?.value||"").toLowerCase().trim();
+
+return cachedOrdersForHistory.filter(function(row){
+var orderId=String(row[0]||"").toLowerCase();
+var route=String(row[4]||"").toLowerCase();
+var product=String(row[3]||"").toLowerCase();
+var driverId=String(row[6]||"").toLowerCase();
+var driverName=getHistoryDriverName(row[6]).toLowerCase();
+var completedDate=String(row[13]||"").substring(0,10);
+
+var dateMatch=!dateValue||completedDate===dateValue;
+var keywordMatch=!keyword||orderId.includes(keyword)||route.includes(keyword)||product.includes(keyword)||driverId.includes(keyword)||driverName.includes(keyword);
+
+return dateMatch&&keywordMatch;
+});
+}
+
+function renderHistoryList(list){
+var container=document.getElementById("historyListContainer");
+var countBox=document.getElementById("historyCount");
+if(countBox)countBox.innerText="🔎 검색 결과 총 "+list.length+"건";
+if(!container)return;
+
+if(list.length===0){
+container.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8">완료된 배송 내역이 없습니다.</div>';
+return;
+}
+
+var html="";
+list.forEach(function(row){
+var orderId=row[0]||"-";
+var product=row[3]||"-";
+var route=row[4]||"-";
+var driverId=row[6]||"-";
+var driverName=getHistoryDriverName(driverId);
+var completedTime=row[13]||"-";
+var registerTime=row[2]||"-";
+
+html+='<div style="background:#0f172a;border:1px solid #334155;padding:12px;border-radius:8px">';
+html+='<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;color:#64b5f6;margin-bottom:5px">';
+html+='<span>🆔 '+escapeHtmlSafe(orderId)+'</span>';
+html+='<span>📅 '+escapeHtmlSafe(completedTime)+'</span>';
+html+='</div>';
+html+='<div style="font-size:14px;color:#e2e8f0;font-weight:bold">📦 '+escapeHtmlSafe(product)+'</div>';
+html+='<div style="font-size:14px;color:#e2e8f0;font-weight:bold">📍 '+escapeHtmlSafe(route)+'</div>';
+html+='<div style="font-size:11px;color:#94a3b8;margin-top:5px">👨‍✈️ '+escapeHtmlSafe(driverName)+' ('+escapeHtmlSafe(driverId)+')</div>';
+html+='<div style="font-size:11px;color:#64748b;margin-top:3px">등록시간: '+escapeHtmlSafe(registerTime)+'</div>';
+html+='</div>';
+});
+
+container.innerHTML=html;
+}
+
+function filterHistoryOrders(dateChanged){
+if(dateChanged){
+var todayBtn=document.getElementById("historyTodayBtn");
+var yesterdayBtn=document.getElementById("historyYesterdayBtn");
+var allBtn=document.getElementById("historyAllBtn");
+if(todayBtn)todayBtn.style.background="#475569";
+if(yesterdayBtn)yesterdayBtn.style.background="#475569";
+if(allBtn)allBtn.style.background="#475569";
+}
+renderHistoryList(filterHistoryData());
+}
+</script>
+
+<div id="subSoundSettingsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000001;padding:20px;align-items:center;justify-content:center">
+<div style="width:100%;max-width:360px;background:#1e293b;border:1px solid #475569;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;color:#fff">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:#0f172a;border-bottom:1px solid #334155">
+<div style="font-size:18px;font-weight:800">🔔 알림음 설정</div>
+<button type="button" onclick="closeSubSoundSettings()" style="border:0;background:transparent;color:#94a3b8;font-size:28px;cursor:pointer">×</button>
+</div>
+<div style="padding:20px">
+<div style="font-size:13px;color:#94a3b8;margin-bottom:8px">오더 상태 알림에 사용할 알림음을 선택하세요.</div>
+<select id="subSoundSelectDropdown" style="width:100%;height:46px;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:8px;padding:0 12px;font-size:15px;outline:none">
+<option value="alert_00001">🔔 알림음 1</option><option value="alert_00002">🔔 알림음 2</option><option value="alert_00003">🔔 알림음 3</option><option value="alert_00004">🔔 알림음 4</option><option value="alert_00005">🔔 알림음 5</option><option value="alert_00006">🔔 알림음 6</option><option value="alert_00007">🔔 알림음 7</option><option value="alert_00008">🔔 알림음 8</option><option value="alert_00009">🔔 알림음 9</option><option value="alert_00010">🔔 알림음 10</option><option value="alert_00011">🔔 알림음 11</option><option value="alert_00012">🔔 알림음 12</option><option value="alert_00013">🔔 알림음 13</option><option value="alert_00014">🔔 알림음 14</option><option value="alert_00015">🔔 알림음 15</option><option value="alert_00016">🔔 알림음 16</option><option value="alert_00017">🔔 알림음 17</option><option value="alert_00018">🔔 알림음 18</option><option value="alert_00019">🔔 알림음 19</option><option value="alert_00020">🔔 알림음 20</option><option value="alert_00021">🔔 알림음 21</option><option value="alert_00022">🔔 알림음 22</option><option value="alert_00023">🔔 알림음 23</option><option value="alert_00024">🔔 알림음 24</option><option value="alert_00025">🔔 알림음 25</option><option value="alert_00026">🔔 알림음 26</option><option value="alert_00027">🔔 알림음 27</option><option value="alert_00028">🔔 알림음 28</option>
+</select>
+<div style="display:flex;gap:8px;margin-top:15px">
+<button type="button" onclick="testSubAlertSound()" style="flex:1;height:44px;border:1px solid #475569;border-radius:8px;background:#334155;color:#fff;font-weight:700;cursor:pointer">🔊 미리듣기</button>
+<button type="button" onclick="saveSubSoundSettings()" style="flex:1;height:44px;border:0;border-radius:8px;background:#10b981;color:#fff;font-weight:800;cursor:pointer">💾 저장</button>
+</div>
+<div style="margin-top:12px;text-align:center;font-size:11px;color:#64748b">오더 수락 · 오더 거절 · 배송완료에 적용됩니다.</div>
+</div>
+</div>
+</div>
+
+<div id="subAlertBanner" class="sub-alert-banner"></div>
+</body>
+</html>

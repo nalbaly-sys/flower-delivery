@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>실시간 관제 지도</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #f8fafc; }
+    #map { width: 100%; height: 100%; }
+    
+    .driver-label { 
+      font-size: 12px; 
+      font-weight: bold; 
+      color: #0f172a; 
+      padding: 3px 6px; 
+      background: white;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .pin-color-0 { filter: hue-rotate(0deg) drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+    .pin-color-1 { filter: hue-rotate(140deg) saturate(160%) drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+    .pin-color-2 { filter: hue-rotate(240deg) saturate(180%) drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+    .pin-color-3 { filter: hue-rotate(60deg) saturate(200%) brightness(90%) drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+    .pin-color-4 { filter: hue-rotate(290deg) drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <script>
+    var urlParams = new URLSearchParams(window.location.search);
+    var focusLat = Number(urlParams.get('lat') || "<?= FOCUS_LAT ?>");
+    var focusLng = Number(urlParams.get('lng') || "<?= FOCUS_LNG ?>");
+
+    var map;
+    var markers = {}; 
+    window.hasInitialCentering = false; 
+
+    function initMap() {
+        map = L.map('map', {
+            zoomControl: true,
+            attributionControl: false
+        }).setView([37.5665, 126.9780], 11);
+
+        L.tileLayer(
+            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            { maxZoom: 19 }
+        ).addTo(map);
+
+        if (focusLat && focusLng && focusLat !== 0 && focusLng !== 0) {
+            map.flyTo([focusLat, focusLng], 17, { animate: true, duration: 1.5 });
+            window.hasInitialCentering = true;
+        }
+
+        requestDriversGpsSync();
+        setInterval(requestDriversGpsSync, 5000); 
+    }
+
+    function requestDriversGpsSync() {
+        google.script.run
+            .withSuccessHandler(function(jsonStr) {
+                try {
+                    var driverList = JSON.parse(jsonStr);
+                    console.log("📥 서버에서 받아온 실시간 기사 데이터:", driverList); // ⭐️ F12 콘솔에서 데이터 확인용
+
+                    var activeLatLngs = [];
+                    var currentActiveIds = {};
+
+                    driverList.forEach(function(driver, index) {
+                        var id = driver.id;
+                        var name = driver.name;
+                        var lat = Number(driver.lat);
+                        var lng = Number(driver.lng);
+                        var status = driver.status;
+
+                        console.log(`기사 ID: ${id}, 상태: ${status}, 위도: ${lat}, 경도: ${lng}`);
+
+                        // ⚠️ 주의: 만약 기사 상태가 "근무중"이 아니라 다른 글자거나 공백이면 여기서 튕깁니다!
+                        if (status !== "근무중" || !lat || !lng || lat === 0 || lng === 0) {
+                            console.log(`⏩ [제외됨] 기사 ${id} - 상태(${status})가 '근무중'이 아니거나 좌표가 0입니다.`);
+                            return;
+                        }
+
+                        currentActiveIds[id] = true;
+                        var pos = [lat, lng];
+                        activeLatLngs.push(pos);
+
+                        var colorIdx = index % 5;
+                        var customIcon = L.icon({
+                            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41],
+                            className: 'pin-color-' + colorIdx
+                        });
+
+                        if (markers[id]) {
+                            // ⭐️ 핵심: 위치가 바뀌었을 때 마커 좌표 강제 갱신
+                            markers[id].setLatLng(pos);
+                            console.log(`📍 기사 ${id} 마커 위치 갱신 완료 -> [${lat}, ${lng}]`);
+                        } else {
+                            var marker = L.marker(pos, { icon: customIcon }).addTo(map);
+                            marker.bindTooltip(
+                                `<div class="driver-label">
+                                    🚖 ${name} (${id}) [${status}]
+                                </div>`,
+                                { permanent: true, direction: 'top', offset: [0, -40] }
+                            ).openTooltip();
+
+                            markers[id] = marker;
+                            console.log(`✨ 기사 ${id} 새 마커 생성 완료`);
+                        }
+                    });
+
+                    Object.keys(markers).forEach(function(id) {
+                        if (!currentActiveIds[id]) {
+                            map.removeLayer(markers[id]);
+                            delete markers[id];
+                        }
+                    });
+
+                    if (activeLatLngs.length > 0 && !window.hasInitialCentering && (!focusLat || focusLat === 0)) {
+                        window.hasInitialCentering = true;
+                        if (activeLatLngs.length === 1) {
+                            map.setView(activeLatLngs[0], 14);
+                        } else {
+                            map.fitBounds(activeLatLngs, { padding: [50, 50] });
+                        }
+                    }
+                } catch (parseErr) {
+                    console.error("데이터 파싱 중 에러 발생:", parseErr);
+                }
+            })
+            .withFailureHandler(function(err) {
+                console.error("서버 통신 실패:", err);
+            })
+            .getDriverGpsDirectForMap();
+    }
+
+    function updatePosition(lat, lng) {
+        console.log("안드로이드에서 받은 실시간 위치 -> 위도: " + lat + ", 경도: " + lng);
+        
+        var myId = "oflower"; // 현재 테스트 중인 기사 ID (필요에 따라 동적으로 받아오도록 수정 가능)
+        var pos = [lat, lng];
+
+        if (markers[myId]) {
+            // 1. 이미 마커가 존재하면 위치만 실시간으로 이동
+            markers[myId].setLatLng(pos);
+            console.log(`📍 내 마커 위치 실시간 갱신: [${lat}, ${lng}]`);
+        } else {
+            // 2. 마커가 아직 없다면 새로 생성 후 지도에 추가
+            var customIcon = L.icon({
+                iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
+
+            var marker = L.marker(pos, { icon: customIcon }).addTo(map);
+            marker.bindTooltip(
+                `<div class="driver-label">🚖 내 위치 (${myId})</div>`,
+                { permanent: true, direction: 'top', offset: [0, -40] }
+            ).openTooltip();
+
+            markers[myId] = marker;
+            console.log(`✨ 내 새 마커 생성 완료`);
+        }
+        
+        // 3. (선택사항) 이동할 때마다 지도의 중심을 내 위치로 부드럽게 따라오게 하려면 아래 주석을 해제하세요
+        // map.panTo(pos);
+    }
+
+    window.addEventListener('DOMContentLoaded', initMap);
+  </script>
+</body>
+</html>

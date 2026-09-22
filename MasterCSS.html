@@ -1,0 +1,278 @@
+<style>
+/* =====================================================
+   Master CSS 1. RESET & BASE
+===================================================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    width: 100%;
+    min-height: 100vh;
+    background: linear-gradient(180deg, #0f172a, #111827);
+    color: white;
+    font-family: "Malgun Gothic", sans-serif;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* =====================================================
+   2. APP & LAYOUT STRUCTURE
+===================================================== */
+.app {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#header {
+    width: 100%;
+    background: #111827;
+    border-bottom: 2px solid #334155;
+    padding: 14px 20px;
+    text-align: center;
+}
+
+#header h1 {
+    font-size: 22px;
+    font-weight: bold;
+    color: white;
+}
+
+#header span {
+    display: block;
+    margin-top: 4px;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+#content, .grid-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+section {
+    width: 100%;
+}
+
+/* =====================================================
+   3. MAP & DASHBOARD
+===================================================== */
+#mapSection {
+    width: 100%;
+    height: 55vh;
+    min-height: 520px;
+    background: #111827;
+    border-top: 1px solid #334155;
+    border-bottom: 2px solid #334155;
+    overflow: hidden;
+}
+
+#mapFrame {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+#dashboardSection {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 700px;
+    background: #0f172a;
+}
+
+/* =====================================================
+   4. TABS
+===================================================== */
+.tab-bar {
+    display: flex;
+    background: #172033;
+    border-bottom: 1px solid #334155;
+}
+
+.tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 18px;
+    cursor: pointer;
+    transition: .25s;
+}
+
+.tab-btn:hover {
+    color: white;
+    background: #22304a;
+}
+
+.tab-btn.active {
+    color: #3b82f6;
+    border-bottom: 4px solid #3b82f6;
+}
+
+.tab-content {
+    display: none;
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* =====================================================
+   5. SUMMARY CARDS
+===================================================== */
+.summary-wrap {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    padding: 18px;
+    background: #111827;
+}
+
+.summary-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 22px;
+    text-align: center;
+    transition: .25s;
+    cursor: default;
+    animation: fadeUp .35s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-3px);
+    border-color: #3b82f6;
+    box-shadow: 0 12px 25px rgba(0,0,0,.35);
+}
+
+.summary-icon { font-size: 32px; }
+.summary-title { margin-top: 10px; color: #94a3b8; font-size: 14px; }
+.summary-value { margin-top: 15px; font-size: 42px; font-weight: bold; }
+
+/* =====================================================
+   6. DRIVER ROW & CARD
+===================================================== */
+.driver-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px;
+    margin-bottom: 16px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: .25s;
+    animation: fadeUp .35s ease;
+}
+
+.driver-row:hover {
+    transform: translateY(-3px);
+    border-color: #3b82f6;
+    box-shadow: 0 12px 25px rgba(0,0,0,.35);
+}
+
+.driver-left { display: flex; flex-direction: column; gap: 8px; }
+.driver-name { font-size: 18px; font-weight: bold; color: white; }
+.driver-id { font-size: 13px; color: #94a3b8; }
+.driver-time { font-size: 12px; color: #64748b; }
+
+/* =====================================================
+   7. PHOTOS & THUMBNAILS
+===================================================== */
+.photo-wrap {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 14px;
+    background: #111827;
+    border-top: 1px solid #334155;
+}
+
+.photo-wrap::-webkit-scrollbar { height: 8px; }
+.photo-wrap::-webkit-scrollbar-thumb { background: #475569; border-radius: 20px; }
+
+.timeline-thumb, .photo-thumb {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 2px solid #334155;
+    cursor: pointer;
+    transition: .25s;
+    flex-shrink: 0;
+}
+
+.timeline-thumb:hover, .photo-thumb:hover {
+    transform: scale(1.05);
+    border-color: #3b82f6;
+}
+
+/* =====================================================
+   8. BUTTONS & ANIMATIONS (Master Only)
+===================================================== */
+.btn-add, .btn-submit, .btn-small, .btn-danger {
+    border: none;
+    border-radius: 10px;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: .25s;
+}
+
+.btn-add { background: #2563eb; padding: 12px 16px; }
+.btn-add:hover { background: #1d4ed8; transform: translateY(-2px); }
+
+.btn-submit { background: #ef4444; padding: 12px 16px; }
+.btn-submit:hover { background: #dc2626; transform: translateY(-2px); }
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track { background: #111827; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+
+/* =====================================================
+   9. RESPONSIVE QUERIES
+===================================================== */
+@media(max-width: 900px) {
+    .summary-wrap { grid-template-columns: repeat(2, 1fr); }
+    #mapSection { height: 45vh; min-height: 320px; }
+}
+
+@media(max-width: 600px) {
+    .summary-wrap { grid-template-columns: 1fr; }
+    .driver-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+}
+</style>
