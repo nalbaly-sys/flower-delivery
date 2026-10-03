@@ -153,24 +153,7 @@ function renderDriverBoard(list){
 }
 
 //==================================================
-// 2. 깜박임 없는 백그라운드 자동 갱신 타이머 (이 코드를 추가하세요)
+// 2. 백그라운드 자동 갱신은 startDriverAutoRefresh()에서 처리
 //==================================================
-setInterval(function() {
-    google.script.run
-        .withSuccessHandler(function(responseJson) {
-            let drivers = responseJson;
-            if (typeof drivers === 'string') {
-                try { drivers = JSON.parse(drivers); } catch(e) { drivers = []; }
-            }
-            
-            // 데이터를 가져오되, 위 함수의 시그니처 비교 로직 덕분에 
-            // '퇴근함' 등으로 바뀐 부분이 있을 때만 화면이 부드럽게 갱신되고, 
-            // 바뀐 게 없으면 화면을 전혀 건드리지 않아 깜박임이 사라집니다!
-            if (typeof renderDriverBoard === 'function') {
-                renderDriverBoard(drivers);
-            }
-        })
-        .getDriverList();
-}, 5000); // 5초 주기
 
 console.log("MASTER DRIVER READY");
