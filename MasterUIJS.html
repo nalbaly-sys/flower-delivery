@@ -43,14 +43,6 @@ function initMaster(){
     if(typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("DRIVER INIT ERROR:",e);}}
     setTimeout(function(){if(typeof initMapEngine==="function"){try{initMapEngine();}catch(e){console.error("MAP INIT ERROR:",e);}}},300);
     if(typeof toggleDriverInput==="function")toggleDriverInput();
-    if(!window.masterPollInterval){
-        window.masterPollInterval=setInterval(function(){
-            var tab2=document.getElementById("tab2");
-            if(tab2&&tab2.classList.contains("active")&&typeof refreshOrderDashboard==="function"){
-                try{refreshOrderDashboard();}catch(e){console.error("ORDER POLLING ERROR:",e);}
-            }
-        },10000);
-    }
     console.log("MASTER INIT COMPLETE");
 }
 
