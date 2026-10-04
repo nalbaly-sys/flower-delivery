@@ -11,9 +11,29 @@ function switchTab(tabId){
     if(target){target.classList.add("active");target.style.display="block";}
     var index=Number(String(tabId).replace("tab",""))-1;
     if(buttons[index])buttons[index].classList.add("active");
-    if(tabId==="tab1"&&typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("TAB1 DRIVER REFRESH ERROR:",e);}}
-    if(tabId==="tab2"&&typeof refreshOrderDashboard==="function"){try{refreshOrderDashboard();}catch(e){console.error("TAB2 ORDER REFRESH ERROR:",e);}}
-    if(tabId==="tab3"){console.log("TAB3 신규 오더 배차");if(typeof syncDriversBoard==="function"){try{syncDriversBoard();}catch(e){console.error("TAB3 DRIVER REFRESH ERROR:",e);}}}
+    if(tabId==="tab1"){
+        if(typeof syncDriversBoard==="function"){
+            try{syncDriversBoard();}catch(e){console.error("TAB1 DRIVER REFRESH ERROR:",e);}
+            setTimeout(function(){try{syncDriversBoard();}catch(e){console.error("TAB1 DRIVER DELAY REFRESH ERROR:",e);}},1500);
+        }
+    }
+
+    if(tabId==="tab2"){
+        if(typeof syncDriversBoard==="function"){
+            try{syncDriversBoard();}catch(e){console.error("TAB2 DRIVER REFRESH ERROR:",e);}
+            setTimeout(function(){try{syncDriversBoard();}catch(e){console.error("TAB2 DRIVER DELAY REFRESH ERROR:",e);}},1500);
+        }
+        if(typeof refreshOrderDashboard==="function"){
+            try{refreshOrderDashboard();}catch(e){console.error("TAB2 ORDER REFRESH ERROR:",e);}
+        }
+    }
+
+    if(tabId==="tab3"){
+        console.log("TAB3 신규 오더 배차");
+        if(typeof syncDriversBoard==="function"){
+            try{syncDriversBoard();}catch(e){console.error("TAB3 DRIVER REFRESH ERROR:",e);}
+        }
+    }
 }
 window.switchTab=switchTab;
 
