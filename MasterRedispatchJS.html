@@ -34,7 +34,7 @@ function openRedispatch(orderId){
     if(typeof showLoading === "function") showLoading("기사 목록 조회중...");
 
     // Ultimate v7 표준 Promise 프록시 호출로 수정
-    runServer("getDriverList")()
+    runServer("getOrderDriverList")()
     .then(function(data){
         if(typeof hideLoading === "function") hideLoading();
 
@@ -57,7 +57,7 @@ function openRedispatch(orderId){
             }
 
             html += `
-<div class="driver-select-card" onclick="executeRedispatch('${driver.id}')">
+<div class="driver-select-card" onclick="executeRedispatchFromModal('${driver.id}')">
 🚚 <b>${driver.name}</b> <br>
 ID : ${driver.id} <br>
 상태 : ${driver.status}
@@ -81,7 +81,7 @@ ID : ${driver.id} <br>
 //==================================================
 // 재배차 실행
 //==================================================
-function executeRedispatch(driverId){
+function executeRedispatchFromModal(driverId){
     if(!REDISPATCH_ORDER_ID){
         return;
     }

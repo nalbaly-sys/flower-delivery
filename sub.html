@@ -317,7 +317,7 @@ if(!assignSelect.value&&assignSelect.options.length)assignSelect.selectedIndex=0
 }
 var redispatchOptionsHtml="<option value='' disabled selected>-- 기사 선택 후 재배차 --</option>";
 drivers.forEach(function(d){var id=d.id||d[0]||"",name=d.name||d[1]||"",st=d.status||d[2]||"퇴근함";if(id)redispatchOptionsHtml+="<option value='"+escapeHtmlSafe(id)+"|"+escapeHtmlSafe(name)+"'>"+escapeHtmlSafe(name)+" ("+escapeHtmlSafe(st)+")</option>"});
-document.querySelectorAll("[id^='redispatch-select-']").forEach(function(el){var current=el.value;el.innerHTML=redispatchOptionsHtml;if(current)el.value=current});
+document.querySelectorAll("[id^='redispatch-select-']").forEach(function(el){if(el.getAttribute("data-driver-source")==="supabase")return;var current=el.value;el.innerHTML=redispatchOptionsHtml;if(current)el.value=current});
 }catch(e){console.error("기사 데이터 파싱 에러:",e)}
 }).withFailureHandler(function(err){console.error("기사 목록 로딩 실패:",err)}).getDriverList();
 }

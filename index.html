@@ -780,6 +780,7 @@ function updateAllRedispatchDropdowns(drivers){
     });
 
     document.querySelectorAll('[id^="redispatch-select-"]').forEach(function(selectEl){
+        if(selectEl.getAttribute("data-driver-source")==="supabase")return;
         var oldValue=selectEl.value;
         selectEl.innerHTML=redispatchHtml;
         if(oldValue){
