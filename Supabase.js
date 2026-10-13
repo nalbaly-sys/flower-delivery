@@ -3896,3 +3896,177 @@ function syncOneOrderNow(){
         return false;
     }
 }
+
+
+/**
+ * Supabase 오더 조회 결과를 성공/실패로 구분
+ * 기존 getSupabaseOrders()는 유지하여 다른 기능과의 호환성을 보존합니다.
+ */
+function getSupabaseOrdersResult() {
+    try {
+        const data = supabaseRequest("orders?select=*&order=created_at.desc", "GET");
+        if (!Array.isArray(data)) {
+            throw new Error("Supabase 오더 조회 결과가 배열이 아닙니다.");
+        }
+        return { success: true, data: data, error: null };
+    } catch (e) {
+        Logger.log("❌ Supabase 오더 조회 실패: " + e.toString());
+        return { success: false, data: null, error: e.toString() };
+    }
+}
+
+
+/**
+ * Supabase 오더 1건 조회
+ * 조회 전용이며 DB를 변경하지 않습니다.
+ */
+function getSupabaseOrderByIdResult(orderId) {
+    orderId = String(orderId || "").trim();
+    if (!orderId) {
+        return { success: false, data: null, error: "오더 ID가 없습니다." };
+    }
+
+    try {
+        const path = "orders?order_id=eq." + encodeURIComponent(orderId) + "&select=*&limit=1";
+        const data = supabaseRequest(path, "GET");
+
+        if (!Array.isArray(data)) {
+            throw new Error("Supabase 오더 조회 결과가 배열이 아닙니다.");
+        }
+
+        return {
+            success: true,
+            data: data.length > 0 ? data[0] : null,
+            error: null
+        };
+    } catch (e) {
+        Logger.log("❌ Supabase 단건 조회 실패: " + e.toString());
+        return { success: false, data: null, error: e.toString() };
+    }
+}
+
+/**
+ * 최근 오더 ID로 단건 조회를 확인하는 읽기 전용 테스트
+ */
+function testSupabaseSingleOrderLookup() {
+    try {
+        const recent = supabaseRequest(
+            "orders?select=order_id&order=created_at.desc&limit=1",
+            "GET"
+        );
+
+        if (!Array.isArray(recent) || recent.length === 0) {
+            Logger.log("ℹ️ Supabase에 조회할 오더가 없습니다.");
+            return { success: true, empty: true };
+        }
+
+        const orderId = String(recent[0].order_id || "").trim();
+        const result = getSupabaseOrderByIdResult(orderId);
+
+        Logger.log("테스트 오더 ID: " + orderId);
+        Logger.log("단건 조회 성공 여부: " + result.success);
+        Logger.log("오더 존재 여부: " + Boolean(result.data));
+        if (result.error) Logger.log("조회 오류: " + result.error);
+
+        return {
+            success: result.success,
+            found: Boolean(result.data),
+            orderId: orderId,
+            error: result.error
+        };
+    } catch (e) {
+        Logger.log("❌ 단건 조회 테스트 실패: " + e.toString());
+        return { success: false, error: e.toString() };
+    }
+}
+
+// ============================================================
+// 읽기 전용 진단: Supabase / 시트 / 현재 반환 건수 비교
+// 데이터 수정·삭제 없이 건수만 확인합니다.
+// ============================================================
+function testOrderCountsReadOnly() {
+    const result = {
+        supabaseTotal: null,
+        sheetOrders: null,
+        getOrdersDataCount: null,
+        errors: []
+    };
+
+    // 1. Supabase 전체 건수 확인: 실제 데이터는 1건만 요청
+    try {
+        const config = getSupabaseConfig();
+        const response = UrlFetchApp.fetch(
+            config.url + "/rest/v1/orders?select=order_id",
+            {
+                method: "GET",
+                muteHttpExceptions: true,
+                headers: {
+                    "apikey": config.secretKey,
+                    "Authorization": "Bearer " + config.secretKey,
+                    "Range-Unit": "items",
+                    "Range": "0-0",
+                    "Prefer": "count=exact"
+                }
+            }
+        );
+
+        const code = response.getResponseCode();
+        const headers = response.getAllHeaders();
+        let contentRange = "";
+
+        Object.keys(headers).forEach(function (key) {
+            if (key.toLowerCase() === "content-range") {
+                contentRange = String(headers[key]);
+            }
+        });
+
+        Logger.log("Supabase 건수 조회 HTTP 코드: " + code);
+        Logger.log("Supabase Content-Range: " + contentRange);
+
+        if (code >= 200 && code < 300) {
+            const match = contentRange.match(/\/(\d+|\*)$/);
+            if (match && match[1] !== "*") {
+                result.supabaseTotal = Number(match[1]);
+            } else {
+                result.errors.push("Supabase 전체 건수를 응답 헤더에서 확인하지 못했습니다.");
+            }
+        } else {
+            result.errors.push("Supabase 건수 조회 HTTP 오류: " + code);
+        }
+    } catch (e) {
+        result.errors.push("Supabase 조회 실패: " + e.toString());
+    }
+
+    // 2. 시트의 실제 오더 행 수 확인
+    try {
+        const sheet = getOrderSheet();
+        if (!sheet) {
+            throw new Error("오더_DB 시트를 찾을 수 없습니다.");
+        }
+        result.sheetOrders = Math.max(0, sheet.getLastRow() - 1);
+    } catch (e) {
+        result.errors.push("시트 건수 확인 실패: " + e.toString());
+    }
+
+    // 3. 기존 getOrdersData()의 반환 건수 확인
+    try {
+        const raw = getOrdersData();
+        const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+
+        if (!Array.isArray(data)) {
+            throw new Error("getOrdersData() 결과가 배열이 아닙니다.");
+        }
+        result.getOrdersDataCount = data.length;
+    } catch (e) {
+        result.errors.push("getOrdersData() 확인 실패: " + e.toString());
+    }
+
+    Logger.log("========== 오더 건수 진단 결과 ==========");
+    Logger.log("Supabase 전체 오더: " + result.supabaseTotal);
+    Logger.log("시트 오더 행 수: " + result.sheetOrders);
+    Logger.log("getOrdersData 반환 수: " + result.getOrdersDataCount);
+    Logger.log("진단 오류: " + (result.errors.length ? result.errors.join(" | ") : "없음"));
+    Logger.log("========================================");
+
+    return result;
+}

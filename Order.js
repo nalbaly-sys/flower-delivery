@@ -258,33 +258,116 @@ function addCompositeOrder(productName,routeArray,uploadFiles,assignType,targetD
     }
 }
 
-//==================================================
-// 오더 목록 조회
+
+ //==================================================
+// 오더 목록 조회: Supabase 우선 + Google Sheet 보완
+// 기존 화면의 JSON 배열 형식 유지
 //==================================================
 function getOrdersData(){
-    const data=getOrderData();
-    const result=[];
-    if(!data||data.length<=1)return JSON.stringify([]);
+    const result = [];
+    const seenOrderIds = {};
+    let correctedMap = {};
+    let supabaseResult = { success: false, data: null, error: "조회 미실행" };
+    let sheetData = [];
 
-    for(let i=1;i<data.length;i++){
-        if(!data[i])continue;
-        const row=data[i].slice();
-        let correctedMap={};
-        try{
-            const correctedJSON=PropertiesService.getScriptProperties().getProperty("ORDER_CORRECTED_MAP");
-            if(correctedJSON)correctedMap=JSON.parse(correctedJSON)||{};
-        }catch(e){}
-
-        if(row[ORDER_COL.DATE] instanceof Date)row[ORDER_COL.DATE]=Utilities.formatDate(row[ORDER_COL.DATE],"Asia/Seoul","yyyy-MM-dd HH:mm");
-        else row[ORDER_COL.DATE]=row[ORDER_COL.DATE]?String(row[ORDER_COL.DATE]):"시간정보없음";
-
-        row[ORDER_COL.STATUS]=row[ORDER_COL.STATUS]!==undefined&&row[ORDER_COL.STATUS]!==null?String(row[ORDER_COL.STATUS]).trim():"미확인";
-        row.push(correctedMap[String(row[ORDER_COL.ORDER_ID]||"")]===true);
-        result.push(row);
+    try {
+        const correctedJSON = PropertiesService.getScriptProperties().getProperty("ORDER_CORRECTED_MAP");
+        if (correctedJSON) correctedMap = JSON.parse(correctedJSON) || {};
+    } catch(e) {
+        Logger.log("⚠️ ORDER_CORRECTED_MAP 조회 실패: " + e.toString());
     }
+
+    // 1. Supabase 조회: 성공과 실패를 구분
+    try {
+        supabaseResult = getSupabaseOrdersResult();
+    } catch(e) {
+        supabaseResult = { success: false, data: null, error: e.toString() };
+    }
+
+    // 2. Google Sheet는 보완 데이터 및 실패 시 대체 데이터로 사용
+    try {
+        sheetData = getOrderData() || [];
+        if (!Array.isArray(sheetData)) sheetData = [];
+    } catch(e) {
+        Logger.log("❌ Google Sheet 오더 조회 실패: " + e.toString());
+        sheetData = [];
+    }
+
+    // 공통: 날짜를 기존 화면 형식으로 변환
+    function formatOrderDate(value) {
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? "시간정보없음" : Utilities.formatDate(value, "Asia/Seoul", "yyyy-MM-dd HH:mm");
+        }
+        if (value === null || value === undefined || value === "") return "시간정보없음";
+        const text = String(value).trim();
+        const date = new Date(text);
+        if (!isNaN(date.getTime()) && /T|\d{4}-\d{2}-\d{2}/.test(text)) {
+            return Utilities.formatDate(date, "Asia/Seoul", "yyyy-MM-dd HH:mm");
+        }
+        return text;
+    }
+
+    // 공통: ID 기준 중복 제거 및 기존 배열 형식 생성
+    function addOrderRow(row) {
+        if (!row) return;
+        const orderId = String(row[ORDER_COL.ORDER_ID] || "").trim();
+        if (!orderId || seenOrderIds[orderId]) return;
+
+        const outputRow = [];
+        for (let i = 0; i <= ORDER_COL.COMPLETED_TIME; i++) {
+            outputRow[i] = row[i] === undefined || row[i] === null ? "" : row[i];
+        }
+
+        outputRow[ORDER_COL.ORDER_ID] = orderId;
+        outputRow[ORDER_COL.DATE] = formatOrderDate(outputRow[ORDER_COL.DATE]);
+        outputRow[ORDER_COL.STATUS] = String(outputRow[ORDER_COL.STATUS] || "미확인").trim();
+        outputRow.push(correctedMap[orderId] === true);
+
+        seenOrderIds[orderId] = true;
+        result.push(outputRow);
+    }
+
+    // 3. Supabase 오더를 우선 추가
+    if (supabaseResult && supabaseResult.success && Array.isArray(supabaseResult.data)) {
+        supabaseResult.data.forEach(function(item) {
+            if (!item) return;
+            const row = [];
+            row[ORDER_COL.ORDER_ID] = item.order_id || "";
+            row[ORDER_COL.REGISTER] = item.register || "";
+            row[ORDER_COL.DATE] = item.created_at || "";
+            row[ORDER_COL.PRODUCT] = item.product || "";
+            row[ORDER_COL.ROUTE] = item.route || "";
+            row[ORDER_COL.ASSIGN_TYPE] = item.assign_type || "";
+            row[ORDER_COL.DRIVER_ID] = item.driver_id || "";
+            row[ORDER_COL.STATUS] = item.status || "미확인";
+            row[ORDER_COL.IMAGE] = item.image_url || "";
+            row[ORDER_COL.THUMB] = item.thumb_url || "";
+            row[ORDER_COL.ROUTE_STATUS] = item.route_status || "";
+            row[ORDER_COL.REJECT_DRIVER] = item.reject_driver || "";
+            row[ORDER_COL.REJECT_TIME] = item.reject_time || "";
+            row[ORDER_COL.COMPLETED_TIME] = item.completed_time || "";
+            addOrderRow(row);
+        });
+        Logger.log("✅ Supabase 오더 조회 성공: " + supabaseResult.data.length + "건");
+    } else {
+        const errorMessage = supabaseResult ? supabaseResult.error : "조회 결과 없음";
+        Logger.log("❌ Supabase 조회 실패. Google Sheet 대체 조회를 사용합니다: " + errorMessage);
+    }
+
+    // 4. Sheet에만 있는 오더를 추가. 같은 ID면 Supabase 데이터 유지
+    if (Array.isArray(sheetData) && sheetData.length > 1) {
+        for (let i = 1; i < sheetData.length; i++) {
+            if (sheetData[i]) addOrderRow(sheetData[i]);
+        }
+    }
+
+    Logger.log("📦 최종 오더 조회 결과: " + result.length + "건");
+    Logger.log("📌 Supabase 조회 상태: " + (supabaseResult && supabaseResult.success ? "성공" : "실패"));
+    Logger.log("📌 Google Sheet 조회 결과: " + Math.max(0, sheetData.length - 1) + "건");
 
     return JSON.stringify(result);
 }
+
 
 //==================================================
 // 선착순 배차 수락
@@ -2892,6 +2975,132 @@ function testMasterAppFcmPush(){
   Logger.log("========================================");
 
   return result;
+}
+
+//==================================================
+// 임시 점검: Google Sheets와 Supabase 오더 비교
+// 읽기 전용이며 실제 데이터를 변경하지 않음
+//==================================================
+function testOrderSyncConsistency(){
+    const report={
+        sheetCount:0,
+        supabaseCount:0,
+        onlyInSheet:[],
+        onlyInSupabase:[],
+        fieldMismatches:[],
+        duplicateSheetIds:[],
+        duplicateSupabaseIds:[]
+    };
+
+    try{
+        const sheetData=getOrderData()||[];
+        const sheetMap={};
+        const sheetDuplicates={};
+
+        for(let i=1;i<sheetData.length;i++){
+            const row=sheetData[i];
+            if(!row)continue;
+
+            const id=String(row[ORDER_COL.ORDER_ID]||"").trim();
+            if(!id)continue;
+
+            if(sheetMap[id]){
+                sheetDuplicates[id]=true;
+                continue;
+            }
+
+            sheetMap[id]={
+                product:String(row[ORDER_COL.PRODUCT]||"").trim(),
+                route:String(row[ORDER_COL.ROUTE]||"").trim(),
+                assign_type:String(row[ORDER_COL.ASSIGN_TYPE]||"").trim(),
+                driver_id:String(row[ORDER_COL.DRIVER_ID]||"").trim(),
+                status:String(row[ORDER_COL.STATUS]||"").trim(),
+                image_url:String(row[ORDER_COL.IMAGE]||"").trim(),
+                thumb_url:String(row[ORDER_COL.THUMB]||"").trim(),
+                route_status:String(row[ORDER_COL.ROUTE_STATUS]||"").trim(),
+                reject_driver:String(row[ORDER_COL.REJECT_DRIVER]||"").trim()
+            };
+        }
+
+        const selectFields=[
+            "order_id","product","route","assign_type","driver_id",
+            "status","image_url","thumb_url","route_status","reject_driver"
+        ].join(",");
+
+        // 직접 요청해 Supabase 조회 실패와 실제 빈 목록을 구분
+        const supabaseData=supabaseRequest(
+            "orders?select="+selectFields+"&order=created_at.desc",
+            "GET"
+        );
+
+        if(!Array.isArray(supabaseData)){
+            throw new Error("Supabase 조회 결과가 배열이 아닙니다.");
+        }
+
+        const supabaseMap={};
+        const supabaseDuplicates={};
+
+        supabaseData.forEach(function(row){
+            const id=String(row.order_id||"").trim();
+            if(!id)return;
+
+            if(supabaseMap[id]){
+                supabaseDuplicates[id]=true;
+                return;
+            }
+
+            supabaseMap[id]={
+                product:String(row.product||"").trim(),
+                route:String(row.route||"").trim(),
+                assign_type:String(row.assign_type||"").trim(),
+                driver_id:String(row.driver_id||"").trim(),
+                status:String(row.status||"").trim(),
+                image_url:String(row.image_url||"").trim(),
+                thumb_url:String(row.thumb_url||"").trim(),
+                route_status:String(row.route_status||"").trim(),
+                reject_driver:String(row.reject_driver||"").trim()
+            };
+        });
+
+        const sheetIds=Object.keys(sheetMap);
+        const supabaseIds=Object.keys(supabaseMap);
+
+        report.sheetCount=sheetIds.length;
+        report.supabaseCount=supabaseIds.length;
+        report.duplicateSheetIds=Object.keys(sheetDuplicates);
+        report.duplicateSupabaseIds=Object.keys(supabaseDuplicates);
+
+        sheetIds.forEach(function(id){
+            if(!supabaseMap[id]){
+                report.onlyInSheet.push(id);
+                return;
+            }
+
+            const fields=Object.keys(sheetMap[id]);
+            fields.forEach(function(field){
+                if(sheetMap[id][field]!==supabaseMap[id][field]){
+                    report.fieldMismatches.push({
+                        orderId:id,
+                        field:field,
+                        sheet:sheetMap[id][field],
+                        supabase:supabaseMap[id][field]
+                    });
+                }
+            });
+        });
+
+        supabaseIds.forEach(function(id){
+            if(!sheetMap[id])report.onlyInSupabase.push(id);
+        });
+
+        Logger.log("===== 오더 동기화 비교 결과 =====");
+        Logger.log(JSON.stringify(report,null,2));
+        return report;
+
+    }catch(e){
+        Logger.log("오더 비교 검사 실패: "+e.toString());
+        throw e;
+    }
 }
 
 //==================================================
