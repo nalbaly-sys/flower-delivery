@@ -1208,13 +1208,10 @@ function syncMyOrders() {
 
   // ⚡ 상태 변경 요청을 먼저 시작해 터치 반응을 앞당기고, 음성은 그 직후 재생
   const originalChangeLocStatus = window.changeLocStatus;
-  window.changeLocStatus = function(orderId, index, status) {
-      const btn = document.querySelector(`[data-order-id="${orderId}"][data-index="${index}"]`) || (typeof event !== "undefined" ? event.target : null);
-      if (btn) btn.style.opacity = "0.6";
-
+  window.changeLocStatus = function(orderId, index, status, clickedButton) {
       // 서버 상태 변경 요청을 음성 재생보다 먼저 시작
       if (typeof originalChangeLocStatus === 'function') {
-          originalChangeLocStatus(orderId, index, status);
+          originalChangeLocStatus(orderId, index, status, clickedButton);
       } else {
           runServer("updateRouteStatus", [orderId, index, status], function(res) {
               if (res && res.success) syncMyOrders();
