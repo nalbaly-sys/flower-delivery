@@ -1206,31 +1206,26 @@ function syncMyOrders() {
     });
 }
 
-  // ⚡ [음성 제어 조건 수정] '미픽업'에는 음성이 나오지 않고, '픽업(배송중)'과 '배송완료'에만 음성이 출력되도록 처리
+  // ⚡ 상태 변경 요청을 먼저 시작해 터치 반응을 앞당기고, 음성은 그 직후 재생
   const originalChangeLocStatus = window.changeLocStatus;
   window.changeLocStatus = function(orderId, index, status) {
-      // '미픽업' 글자가 포함되어 있지 않고 픽업 관련 상태일 때만 WAV 파일 재생 ("tts_pickup")
-      if (!status.includes("미픽업") && (status.includes("픽업") || status.includes("배송중"))) {
-          if (typeof speakText === 'function') {
-              speakText("tts_pickup");
-          }
-      } else if (status.includes("배송완료") || (status.includes("완료") && !status.includes("미"))) {
-          if (typeof speakText === 'function') {
-              speakText("tts_done"); // "완료!!" WAV 파일 재생
-          }
-      }
+      const btn = document.querySelector(`[data-order-id="${orderId}"][data-index="${index}"]`) || (typeof event !== "undefined" ? event.target : null);
+      if (btn) btn.style.opacity = "0.6";
 
-      const btn = document.querySelector(`[data-order-id="${orderId}"][data-index="${index}"]`) || event?.target;
-      if (btn) {
-          btn.style.opacity = "0.6"; 
-      }
-
+      // 서버 상태 변경 요청을 음성 재생보다 먼저 시작
       if (typeof originalChangeLocStatus === 'function') {
           originalChangeLocStatus(orderId, index, status);
       } else {
           runServer("updateRouteStatus", [orderId, index, status], function(res) {
               if (res && res.success) syncMyOrders();
           });
+      }
+
+      // '미픽업'은 제외하고 픽업/배송중, 배송완료에서만 음성 출력
+      if (!status.includes("미픽업") && (status.includes("픽업") || status.includes("배송중"))) {
+          if (typeof speakText === 'function') speakText("tts_pickup");
+      } else if (status.includes("배송완료") || (status.includes("완료") && !status.includes("미"))) {
+          if (typeof speakText === 'function') speakText("tts_done");
       }
   };
 
