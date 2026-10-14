@@ -586,6 +586,8 @@ function redispatchOrder(orderId,driverId){
 // Google Sheet + Supabase PATCH
 //==================================================
 function updateIndividualLocationStatus(orderId,routeIdx,nextStatus){
+    const __perfStart=Date.now();
+    let __perfStage=__perfStart;
     try{
         orderId=String(orderId||"").trim();
         routeIdx=Number(routeIdx);
@@ -596,6 +598,8 @@ function updateIndividualLocationStatus(orderId,routeIdx,nextStatus){
         if(!nextStatus)return{success:false};
 
         const order=findOrderRow(orderId);
+        Logger.log("[배송상태 시간측정] 오더 조회 = "+(Date.now()-__perfStage)+"ms");
+        __perfStage=Date.now();
         if(!order||!Array.isArray(order.data))return{success:false};
 
         const status=String(order.data[ORDER_COL.ROUTE_STATUS]||"").split(",").map(function(v){return String(v||"").trim()||"미픽업";});
@@ -612,6 +616,8 @@ function updateIndividualLocationStatus(orderId,routeIdx,nextStatus){
         updateCell(sheet,order.row,ORDER_COL.ROUTE_STATUS+1,newRouteStatus);
         SpreadsheetApp.flush();
         clearProjectCache();
+        Logger.log("[배송상태 시간측정] 시트 저장+flush+캐시 = "+(Date.now()-__perfStage)+"ms");
+        __perfStage=Date.now();
 
         Logger.log("✅ Google Sheet 경유지 상태 저장 완료 = "+orderId);
         Logger.log("📍 routeIdx = "+routeIdx+" / nextStatus = "+nextStatus);
@@ -619,11 +625,14 @@ function updateIndividualLocationStatus(orderId,routeIdx,nextStatus){
 
         try{
             const supabaseResult=updateOrderToSupabase(orderId,{route_status:newRouteStatus});
+            Logger.log("[배송상태 시간측정] Supabase PATCH = "+(Date.now()-__perfStage)+"ms");
             Logger.log("🔄 경유지 상태 Supabase PATCH = "+JSON.stringify(supabaseResult));
         }catch(supabaseErr){
+            Logger.log("[배송상태 시간측정] Supabase PATCH 예외까지 = "+(Date.now()-__perfStage)+"ms");
             Logger.log("❌ 경유지 상태 Supabase PATCH 실패 = "+supabaseErr.toString());
         }
 
+        Logger.log("[배송상태 시간측정] 서버 전체 = "+(Date.now()-__perfStart)+"ms");
         return{success:true};
     }catch(e){
         Logger.log("❌ updateIndividualLocationStatus 오류 = "+e.toString());
