@@ -284,13 +284,16 @@ function getOrdersData(){
         supabaseResult = { success: false, data: null, error: e.toString() };
     }
 
-    // 2. Google Sheet는 보완 데이터 및 실패 시 대체 데이터로 사용
-    try {
-        sheetData = getOrderData() || [];
-        if (!Array.isArray(sheetData)) sheetData = [];
-    } catch(e) {
-        Logger.log("❌ Google Sheet 오더 조회 실패: " + e.toString());
-        sheetData = [];
+    // 2. Supabase 조회 실패 시에만 Google Sheet를 대체 조회로 사용
+    // Supabase 조회가 성공한 경우 기사 앱의 오더 조회 지연을 막기 위해 Sheet를 읽지 않습니다.
+    if (!supabaseResult || !supabaseResult.success) {
+        try {
+            sheetData = getOrderData() || [];
+            if (!Array.isArray(sheetData)) sheetData = [];
+        } catch(e) {
+            Logger.log("❌ Google Sheet 대체 오더 조회 실패: " + e.toString());
+            sheetData = [];
+        }
     }
 
     // 공통: 날짜를 기존 화면 형식으로 변환
@@ -366,8 +369,8 @@ function getOrdersData(){
         Logger.log("❌ Supabase 조회 실패. Google Sheet 대체 조회를 사용합니다: " + errorMessage);
     }
 
-    // 4. Sheet에만 있는 오더를 추가. 같은 ID면 Supabase 데이터 유지
-    if (Array.isArray(sheetData) && sheetData.length > 1) {
+    // 4. Supabase 조회 실패 시에만 Google Sheet 데이터를 대체 사용
+    if ((!supabaseResult || !supabaseResult.success) && Array.isArray(sheetData) && sheetData.length > 1) {
         for (let i = 1; i < sheetData.length; i++) {
             if (sheetData[i]) addOrderRow(sheetData[i]);
         }
