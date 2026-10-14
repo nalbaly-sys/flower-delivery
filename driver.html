@@ -2042,6 +2042,24 @@ function loadHistoryOrders(){
     });
 }
 
+function getSeoulHistoryDateKey(value){
+    if(!value)return"";
+    var text=String(value).trim();
+    if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text))return text.substring(0,10);
+    var date=value instanceof Date?new Date(value):new Date(text);
+    if(isNaN(date.getTime()))return"";
+    var parts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(date);
+    var dateParts={};
+    parts.forEach(function(part){if(part.type!=="literal")dateParts[part.type]=part.value;});
+    return dateParts.year+"-"+dateParts.month+"-"+dateParts.day;
+}
+
+function getSeoulHistoryDate(offsetDays){
+    var today=getSeoulHistoryDateKey(new Date()).split("-");
+    if(today.length!==3)return"";
+    var date=new Date(Date.UTC(Number(today[0]),Number(today[1])-1,Number(today[2])+(offsetDays||0)));
+    return date.getUTCFullYear()+"-"+String(date.getUTCMonth()+1).padStart(2,"0")+"-"+String(date.getUTCDate()).padStart(2,"0");
+}
 function setHistoryDate(type){
     const input=document.getElementById("historyDateInput");
     if(!input)return;
@@ -2061,16 +2079,13 @@ function setHistoryDate(type){
         return;
     }
 
-    const d=new Date();
-
     if(type==="yesterday"){
-        d.setDate(d.getDate()-1);
         if(yesterdayBtn)yesterdayBtn.style.background="#2563eb";
     }else{
         if(todayBtn)todayBtn.style.background="#2563eb";
     }
 
-    input.value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    input.value=getSeoulHistoryDate(type==="yesterday"?-1:0);
     filterHistoryOrders(false);
 }
 
@@ -2082,7 +2097,7 @@ function filterHistoryData(){
         const orderId=String(row[ORDER_COL.ORDER_ID]||"").toLowerCase();
         const route=String(row[ORDER_COL.ROUTE]||"").toLowerCase();
 
-        const completedDate=String(row[ORDER_COL.COMPLETED_TIME]||"").substring(0,10);
+        const completedDate=getSeoulHistoryDateKey(row[ORDER_COL.COMPLETED_TIME]);
 
         const dateMatch=!dateValue||completedDate===dateValue;
         const keywordMatch=!keyword||orderId.includes(keyword)||route.includes(keyword);

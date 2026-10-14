@@ -560,6 +560,24 @@ if(id===driverId)return String(d.name||d[1]||driverId);
 return driverId;
 }
 
+function getSeoulHistoryDateKey(value){
+    if(!value)return"";
+    var text=String(value).trim();
+    if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text))return text.substring(0,10);
+    var date=value instanceof Date?new Date(value):new Date(text);
+    if(isNaN(date.getTime()))return"";
+    var parts=new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(date);
+    var dateParts={};
+    parts.forEach(function(part){if(part.type!=="literal")dateParts[part.type]=part.value;});
+    return dateParts.year+"-"+dateParts.month+"-"+dateParts.day;
+}
+
+function getSeoulHistoryDate(offsetDays){
+    var today=getSeoulHistoryDateKey(new Date()).split("-");
+    if(today.length!==3)return"";
+    var date=new Date(Date.UTC(Number(today[0]),Number(today[1])-1,Number(today[2])+(offsetDays||0)));
+    return date.getUTCFullYear()+"-"+String(date.getUTCMonth()+1).padStart(2,"0")+"-"+String(date.getUTCDate()).padStart(2,"0");
+}
 function setHistoryDate(type){
 var input=document.getElementById("historyDateInput");
 if(!input)return;
@@ -577,14 +595,12 @@ filterHistoryOrders(false);
 return;
 }
 
-var d=new Date();
 if(type==="yesterday"){
-d.setDate(d.getDate()-1);
 if(yesterdayBtn)yesterdayBtn.style.background="#2563eb";
 }else{
 if(todayBtn)todayBtn.style.background="#2563eb";
 }
-input.value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+input.value=getSeoulHistoryDate(type==="yesterday"?-1:0);
 filterHistoryOrders(false);
 }
 
@@ -598,7 +614,7 @@ var route=String(row[4]||"").toLowerCase();
 var product=String(row[3]||"").toLowerCase();
 var driverId=String(row[6]||"").toLowerCase();
 var driverName=getHistoryDriverName(row[6]).toLowerCase();
-var completedDate=String(row[13]||"").substring(0,10);
+var completedDate=getSeoulHistoryDateKey(row[13]);
 
 var dateMatch=!dateValue||completedDate===dateValue;
 var keywordMatch=!keyword||orderId.includes(keyword)||route.includes(keyword)||product.includes(keyword)||driverId.includes(keyword)||driverName.includes(keyword);

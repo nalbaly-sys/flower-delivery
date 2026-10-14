@@ -320,6 +320,18 @@ function getOrdersData(){
 
         outputRow[ORDER_COL.ORDER_ID] = orderId;
         outputRow[ORDER_COL.DATE] = formatOrderDate(outputRow[ORDER_COL.DATE]);
+
+        // 배송완료 시각은 화면에 전달할 때 한국시간으로 통일
+        const completedValue = outputRow[ORDER_COL.COMPLETED_TIME];
+        if (completedValue !== "" && completedValue !== null && completedValue !== undefined) {
+            const completedText = String(completedValue).trim();
+            outputRow[ORDER_COL.COMPLETED_TIME] = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(completedText)
+                ? completedText
+                : formatOrderDate(completedValue);
+        } else {
+            outputRow[ORDER_COL.COMPLETED_TIME] = "";
+        }
+
         outputRow[ORDER_COL.STATUS] = String(outputRow[ORDER_COL.STATUS] || "미확인").trim();
         outputRow.push(correctedMap[orderId] === true);
 
