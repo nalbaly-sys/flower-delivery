@@ -1528,9 +1528,9 @@ function renderHtml(container, newHtml) {
       <div class="route-item">
           <span class="route-text">📍 ${route}</span>
           <div class="status-toggle-box">
-              <button class="btn-toggle ${cls==="미픽업"?"active-waiting":""}" onclick="changeLocStatus('${orderId}', ${index}, '미픽업')">미픽업</button>
-              <button class="btn-toggle ${cls==="픽업"?"active-pickup":""}" onclick="changeLocStatus('${orderId}', ${index}, '픽업(배송중)')">픽업</button>
-              <button class="btn-toggle ${cls==="배송완료"?"active-complete":""}" onclick="changeLocStatus('${orderId}', ${index}, '배송완료')">배송완료</button>
+              <button class="btn-toggle ${cls==="미픽업"?"active-waiting":""}" onclick="changeLocStatus('${orderId}', ${index}, '미픽업', this)">미픽업</button>
+              <button class="btn-toggle ${cls==="픽업"?"active-pickup":""}" onclick="changeLocStatus('${orderId}', ${index}, '픽업(배송중)', this)">픽업</button>
+              <button class="btn-toggle ${cls==="배송완료"?"active-complete":""}" onclick="changeLocStatus('${orderId}', ${index}, '배송완료', this)">배송완료</button>
           </div>
       </div>`;
   }
@@ -1581,10 +1581,37 @@ function renderHtml(container, newHtml) {
     }
 }
 
-  function changeLocStatus(orderId, index, nextStatus) {
+  function changeLocStatus(orderId, index, nextStatus, clickedButton) {
+      const buttonGroup = clickedButton ? clickedButton.closest(".status-toggle-box") : null;
+      const buttons = buttonGroup ? Array.from(buttonGroup.querySelectorAll("button")) : [];
+      const originalTexts = buttons.map(button => button.textContent);
+      buttons.forEach(button => {
+          button.disabled = true;
+          button.style.opacity = "0.65";
+      });
+      if (clickedButton) {
+          clickedButton.textContent = "처리 중...";
+          clickedButton.style.opacity = "1";
+      }
+
+      let finished = false;
+      const restoreButtons = function() {
+          if (finished) return;
+          finished = true;
+          buttons.forEach((button, i) => {
+              button.disabled = false;
+              button.style.opacity = "";
+              button.textContent = originalTexts[i];
+          });
+      };
+      // 통신이 실패하거나 응답이 오지 않아도 버튼이 영구 잠기지 않도록 안전장치
+      const restoreTimer = setTimeout(restoreButtons, 12000);
+
       showLoading("상태 변경 중...");
       runServer("updateIndividualLocationStatus", [orderId, index, nextStatus], function(res) {
           hideLoading();
+          clearTimeout(restoreTimer);
+          restoreButtons();
           if (res && res.success === false) { alert(res.msg || "상태 변경 실패"); return; }
           syncMyOrders();
       });
