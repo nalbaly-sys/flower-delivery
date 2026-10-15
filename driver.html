@@ -1582,34 +1582,45 @@ function renderHtml(container, newHtml) {
       const buttonGroup = clickedButton ? clickedButton.closest(".status-toggle-box") : null;
       const buttons = buttonGroup ? Array.from(buttonGroup.querySelectorAll("button")) : [];
       const originalTexts = buttons.map(button => button.textContent);
+      const activeClasses = ["active-waiting", "active-pickup", "active-complete"];
+      const originalClasses = buttons.map(button => activeClasses.filter(cls => button.classList.contains(cls)));
+      const targetClass = nextStatus === "미픽업" ? "active-waiting" : (nextStatus.indexOf("배송완료") >= 0 ? "active-complete" : "active-pickup");
+
+      // 서버 응답을 기다리지 않고 선택 색상부터 즉시 변경
       buttons.forEach(button => {
           button.disabled = true;
-          button.style.opacity = "0.65";
+          button.style.opacity = "0.75";
+          activeClasses.forEach(cls => button.classList.remove(cls));
       });
-      if (clickedButton) {
-          clickedButton.textContent = "처리 중...";
-          clickedButton.style.opacity = "1";
-      }
+      if (clickedButton) clickedButton.classList.add(targetClass);
 
       let finished = false;
-      const restoreButtons = function() {
+      const restoreButtons = function(rollback) {
           if (finished) return;
           finished = true;
           buttons.forEach((button, i) => {
               button.disabled = false;
               button.style.opacity = "";
               button.textContent = originalTexts[i];
+              if (rollback) {
+                  activeClasses.forEach(cls => button.classList.remove(cls));
+                  originalClasses[i].forEach(cls => button.classList.add(cls));
+              }
           });
       };
-      // 통신이 실패하거나 응답이 오지 않아도 버튼이 영구 잠기지 않도록 안전장치
-      const restoreTimer = setTimeout(restoreButtons, 12000);
+      // 서버 응답이 없으면 12초 후 버튼을 풀고 기존 색상으로 되돌림
+      const restoreTimer = setTimeout(function() { restoreButtons(true); }, 12000);
 
-      showLoading("상태 변경 중...");
+      showLoading("상태 저장 중...");
       runServer("updateIndividualLocationStatus", [orderId, index, nextStatus], function(res) {
           hideLoading();
           clearTimeout(restoreTimer);
-          restoreButtons();
-          if (res && res.success === false) { alert(res.msg || "상태 변경 실패"); return; }
+          if (res && res.success === false) {
+              restoreButtons(true);
+              alert(res.msg || "상태 변경 실패");
+              return;
+          }
+          restoreButtons(false);
           syncMyOrders();
       });
   }
