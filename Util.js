@@ -566,347 +566,126 @@ function safeJsonStringify(data){
 
 }
 
+// Supabase 오더 조회 공통: 엑셀 내역도 오더 원본은 Supabase만 사용
+function getExcelOrdersFromSupabase_(){
+  const result=getSupabaseOrdersResult();
+  if(!result||result.success!==true||!Array.isArray(result.data)){
+    const message=result&&result.error?result.error:"Supabase 조회 결과가 올바르지 않습니다.";
+    throw new Error("Supabase 오더 조회 실패: "+message);
+  }
+  return result.data;
+}
+function excelKstDate_(value){
+  if(value===null||value===undefined||value==="")return "";
+  const d=value instanceof Date?value:new Date(value);
+  return isNaN(d.getTime())?"":Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd");
+}
+function excelKstDateTime_(value){
+  if(value===null||value===undefined||value==="")return "";
+  const d=value instanceof Date?value:new Date(value);
+  return isNaN(d.getTime())?String(value):Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd HH:mm:ss");
+}
+function excelDateInRange_(value,startDateStr,endDateStr){
+  const day=excelKstDate_(value);
+  return !!day&&(!startDateStr||day>=String(startDateStr).slice(0,10))&&(!endDateStr||day<=String(endDateStr).slice(0,10));
+}
+function excelRouteText_(value){
+  if(!value)return "";
+  try{const parsed=typeof value==="string"&&value.trim().startsWith("[")?JSON.parse(value):value;return Array.isArray(parsed)?parsed.join(" ➡️ "):String(parsed);}catch(e){return String(value);}
+}
+function excelDriverName_(driverId){
+  const ids=String(driverId||"").split(",").map(function(v){return v.trim();}).filter(Boolean);
+  return ids.map(function(id){try{const info=findDriverRow(id);return info&&info.data&&typeof DRIVER_COL!=="undefined"?String(info.data[DRIVER_COL.NAME]||id):id;}catch(e){return id;}}).join(", ");
+}
+
 //==================================================
 // 마스터 / 부마스터 공용
 // 전체 기사 배송내역 Excel 생성
 //==================================================
 function createAllDriversOrdersExcel(startDateStr,endDateStr){
+  let tempSS=null;
   try{
-    const orderSheet=getOrderSheet();
-    if(!orderSheet)return "ERROR: 오더 시트를 찾을 수 없습니다.";
-
-    const data=orderSheet.getDataRange().getValues();
-    if(!data||data.length<=1)return "ERROR: 배송 내역이 없습니다.";
-
-    const startDate=new Date(startDateStr);
-    startDate.setHours(0,0,0,0);
-
-    const endDate=new Date(endDateStr);
-    endDate.setHours(23,59,59,999);
-
-    const cId=0,cDate=2,cProd=3,cRoute=4,cDriver=6;
-
-    // 기사 DB
-    const driverSheet=SpreadsheetApp.getActiveSpreadsheet()
-      .getSheetByName("기사상태_DB");
-
-    const driverMap={};
-
-    if(driverSheet){
-      const driverData=driverSheet.getDataRange().getValues();
-
-      for(let i=1;i<driverData.length;i++){
-        const driverId=String(driverData[i][0]||"").trim();
-        const driverName=String(driverData[i][1]||"").trim();
-
-        if(driverId){
-          driverMap[driverId]=driverName;
-        }
-      }
-    }
-
-    const rows=[
-      ["오더ID","상품명","배송경로","기사ID","기사명","등록시간"]
-    ];
-
-    for(let i=1;i<data.length;i++){
-      const row=data[i];
-
-      const rowDateVal=row[cDate];
-      const rowDriver=String(row[cDriver]||"").trim();
-
-      if(!rowDateVal)continue;
-
-      const rowDate=new Date(rowDateVal);
-
-      if(rowDate<startDate||rowDate>endDate)continue;
-
-      let driverName="";
-
-      if(rowDriver){
-        const driverIds=rowDriver
-          .split(",")
-          .map(v=>v.trim())
-          .filter(Boolean);
-
-        driverName=driverIds
-          .map(id=>driverMap[id]||"")
-          .filter(Boolean)
-          .join(", ");
-      }
-
-      rows.push([
-        String(row[cId]||""),
-        String(row[cProd]||""),
-        String(row[cRoute]||""),
-        rowDriver,
-        driverName,
-        String(row[cDate]||"")
-      ]);
-    }
-
-    if(rows.length<=1){
-      return "ERROR: 해당 기간에 배송 내역이 없습니다.";
-    }
-
-    const tempSS=SpreadsheetApp.create(
-      "부름이_전체기사_임시_"+Date.now()
-    );
-
-    const tempSheet=tempSS.getSheets()[0];
-
-    tempSheet
-      .getRange(1,1,rows.length,6)
-      .setValues(rows);
-
-    tempSheet
-      .getRange(1,1,1,6)
-      .setFontWeight("bold");
-
-    tempSheet.setFrozenRows(1);
-    tempSheet.autoResizeColumns(1,6);
-
-    SpreadsheetApp.flush();
-
-    const exportUrl=
-      "https://docs.google.com/spreadsheets/d/"+
-      tempSS.getId()+
-      "/export?format=xlsx";
-
-    const response=UrlFetchApp.fetch(exportUrl,{
-      headers:{
-        Authorization:"Bearer "+ScriptApp.getOAuthToken()
-      },
-      muteHttpExceptions:true
+    const data=getExcelOrdersFromSupabase_();
+    const rows=[["오더ID","상품명","배송경로","기사ID","기사명","등록시간"]];
+    data.forEach(function(order){
+      if(!order||!excelDateInRange_(order.created_at||order.register,startDateStr,endDateStr))return;
+      const driverId=String(order.driver_id||"").trim();
+      rows.push([String(order.order_id||""),String(order.product||""),excelRouteText_(order.route),driverId,excelDriverName_(driverId),excelKstDateTime_(order.created_at||order.register)]);
     });
-
-    const tempFile=DriveApp.getFileById(tempSS.getId());
-
-    if(response.getResponseCode()!==200){
-      tempFile.setTrashed(true);
-      return "ERROR: Excel 파일 생성 실패 ("+
-        response.getResponseCode()+")";
-    }
-
-    const fileName=
-      "부름이_전체기사_"+
-      startDateStr+
-      "_"+
-      endDateStr+
-      ".xlsx";
-
-    const result={
-      fileName:fileName,
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      base64:
-        Utilities.base64Encode(
-          response.getBlob().getBytes()
-        )
-    };
-
-    tempFile.setTrashed(true);
-
-    return result;
-
-  }catch(err){
-    Logger.log(
-      "createAllDriversOrdersExcel Error: "+
-      err.message
-    );
-
-    return "ERROR: "+err.message;
-  }
+    if(rows.length<=1)return "ERROR: 해당 기간에 오더 내역이 없습니다.";
+    tempSS=SpreadsheetApp.create("부름이_전체기사_임시_"+Date.now());
+    const sh=tempSS.getSheets()[0];
+    sh.getRange(1,1,rows.length,6).setValues(rows);
+    sh.getRange(1,1,1,6).setFontWeight("bold");
+    sh.setFrozenRows(1);sh.autoResizeColumns(1,6);SpreadsheetApp.flush();
+    const response=UrlFetchApp.fetch("https://docs.google.com/spreadsheets/d/"+tempSS.getId()+"/export?format=xlsx",{headers:{Authorization:"Bearer "+ScriptApp.getOAuthToken()},muteHttpExceptions:true});
+    if(response.getResponseCode()!==200)return "ERROR: Excel 파일 생성 실패 ("+response.getResponseCode()+")";
+    return {fileName:"부름이_전체기사_"+startDateStr+"_"+endDateStr+".xlsx",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",base64:Utilities.base64Encode(response.getBlob().getBytes())};
+  }catch(err){Logger.log("createAllDriversOrdersExcel Error: "+err.message);return "ERROR: "+err.message;}
+  finally{if(tempSS){try{DriveApp.getFileById(tempSS.getId()).setTrashed(true);}catch(e){Logger.log("임시 엑셀 정리 실패: "+e.message);}}}
 }
 
 //==================================================
 // 부마스터 및 마스터 공용: 배송완료일 기준 엑셀 다운로드용 데이터 조회
 //==================================================
 function fetchOrdersForExcel(startDateStr,endDateStr){
-    try{
-        const sheet=getOrderSheet();
-        if(!sheet)return "ERROR: 오더 시트를 찾을 수 없습니다.";
-
-        const data=sheet.getDataRange().getValues();
-        if(!data||data.length<=1)return[];
-
-        const startDate=new Date(startDateStr);
-        startDate.setHours(0,0,0,0);
-
-        const endDate=new Date(endDateStr);
-        endDate.setHours(23,59,59,999);
-
-        const cId=0;
-        const cProd=3;
-        const cRoute=4;
-        const cDriver=6;
-        const cStatus=7;
-        const cCompletedDate=13;
-
-        let resultList=[];
-
-        for(let i=1;i<data.length;i++){
-            const row=data[i];
-            const completedDateVal=row[cCompletedDate];
-
-            if(!completedDateVal)continue;
-
-            const completedDate=new Date(completedDateVal);
-
-            if(isNaN(completedDate.getTime()))continue;
-
-            if(completedDate>=startDate&&completedDate<=endDate){
-                resultList.push({
-                    id:String(row[cId]||""),
-                    productName:String(row[cProd]||""),
-                    route:String(row[cRoute]||""),
-                    driverName:String(row[cDriver]||""),
-                    regTime:String(completedDateVal||""),
-                    status:String(row[cStatus]||"배송완료"),
-                    deliveryTime:String(completedDateVal||"")
-                });
-            }
-        }
-
-        return resultList;
-
-    }catch(err){
-        Logger.log("fetchOrdersForExcel Error: "+err.message);
-        return "ERROR: "+err.message;
-    }
+  try{
+    const data=getExcelOrdersFromSupabase_();
+    const result=[];
+    data.forEach(function(order){
+      if(!order)return;
+      const completed=order.completed_time;
+      if(!completed||!excelDateInRange_(completed,startDateStr,endDateStr))return;
+      const driverId=String(order.driver_id||"").trim();
+      result.push({id:String(order.order_id||""),productName:String(order.product||""),route:excelRouteText_(order.route),driverName:excelDriverName_(driverId),regTime:excelKstDateTime_(completed),status:String(order.status||"배송완료"),deliveryTime:excelKstDateTime_(completed)});
+    });
+    Logger.log("Supabase 배송완료일 기준 엑셀 조회: "+result.length+"건");
+    return result;
+  }catch(err){Logger.log("fetchOrdersForExcel 오류: "+err.message);return "ERROR_MSG: "+err.message;}
 }
 
 //==================================================
 // 기사 앱 전용: 특정 기사 배송 내역 엑셀 데이터 조회 (D열 기사ID 반영)
 //==================================================
-function fetchDriverOrdersForExcel(driverId, startDateStr, endDateStr) {
-    try {
-        const sheet = getOrderSheet();
-        if (!sheet) return "ERROR: 오더 시트를 찾을 수 없습니다.";
-
-        const data = sheet.getDataRange().getValues();
-        if (!data || data.length <= 1) return [];
-
-        const startDate = new Date(startDateStr);
-        startDate.setHours(0, 0, 0, 0);
-
-        const endDate = new Date(endDateStr);
-        endDate.setHours(23, 59, 59, 999);
-
-        // Common.gs의 ORDER_COL 기준 인덱스
-        const cId = 0;      // ORDER_ID
-        const cDate = 2;    // DATE (등록시간)
-        const cProd = 3;    // PRODUCT
-        const cRoute = 4;   // ROUTE
-        const cDriver = 6;  // DRIVER_ID
-
-        let resultList = [];
-
-        for (let i = 1; i < data.length; i++) {
-            const row = data[i];
-            const rowDriver = String(row[cDriver] || "").trim();
-            const rowDateVal = row[cDate];
-
-            if (rowDriver.includes(driverId) && rowDateVal) {
-                const rowDate = new Date(rowDateVal);
-                if (rowDate >= startDate && rowDate <= endDate) {
-                    resultList.push({
-                        id: String(row[cId] || ""),
-                        productName: String(row[cProd] || ""),
-                        route: String(row[cRoute] || ""),
-                        driverId: String(row[cDriver] || ""), // 💡 기사ID 추가
-                        regTime: String(row[cDate] || "")
-                    });
-                }
-            }
-        }
-        return resultList;
-    } catch (err) {
-        return "ERROR: " + err.message;
-    }
+function fetchDriverOrdersForExcel(driverId,startDateStr,endDateStr){
+  try{
+    driverId=String(driverId||"").trim();
+    if(!driverId)return "ERROR_MSG: 기사 ID가 없습니다.";
+    const data=getExcelOrdersFromSupabase_();
+    const result=[];
+    data.forEach(function(order){
+      if(!order||!order.completed_time)return;
+      const assigned=String(order.driver_id||"").split(",").map(function(v){return v.trim();});
+      if(assigned.indexOf(driverId)<0||!excelDateInRange_(order.completed_time,startDateStr,endDateStr))return;
+      result.push({id:String(order.order_id||""),productName:String(order.product||""),route:excelRouteText_(order.route),driverId:String(order.driver_id||""),regTime:excelKstDateTime_(order.completed_time),deliveryTime:excelKstDateTime_(order.completed_time),status:String(order.status||"배송완료")});
+    });
+    return result;
+  }catch(err){Logger.log("fetchDriverOrdersForExcel 오류: "+err.message);return "ERROR_MSG: "+err.message;}
 }
 
 function createDriverOrdersExcel(driverId,startDateStr,endDateStr){
+  let tempSS=null;
   try{
-    const sheet=getOrderSheet();
-    if(!sheet)return "ERROR: 오더 시트를 찾을 수 없습니다.";
-
-    const data=sheet.getDataRange().getValues();
-    if(!data||data.length<=1)return "ERROR: 배송 내역이 없습니다.";
-
-    const startDate=new Date(startDateStr);
-    startDate.setHours(0,0,0,0);
-
-    const endDate=new Date(endDateStr);
-    endDate.setHours(23,59,59,999);
-
-    const cId=0;
-    const cProd=3;
-    const cRoute=4;
-    const cDriver=6;
-    const cCompletedDate=13;
-
+    driverId=String(driverId||"").trim();
+    if(!driverId)return "ERROR: 기사 ID가 없습니다.";
+    const data=getExcelOrdersFromSupabase_();
     const rows=[["오더ID","상품명","경로","기사ID","배송완료시간"]];
-
-    for(let i=1;i<data.length;i++){
-      const row=data[i];
-
-      const rowDriver=String(row[cDriver]||"").trim();
-      const completedDateVal=row[cCompletedDate];
-
-      if(!rowDriver.includes(driverId)||!completedDateVal)continue;
-
-      const completedDate=new Date(completedDateVal);
-
-      if(isNaN(completedDate.getTime()))continue;
-
-      if(completedDate>=startDate&&completedDate<=endDate){
-        rows.push([
-          String(row[cId]||""),
-          String(row[cProd]||""),
-          String(row[cRoute]||""),
-          String(row[cDriver]||""),
-          String(completedDateVal||"")
-        ]);
-      }
-    }
-
-    if(rows.length<=1)return "ERROR: 해당 기간에 배송완료 내역이 없습니다.";
-
-    const tempSS=SpreadsheetApp.create("부름이_임시_엑셀");
-    const tempSheet=tempSS.getSheets()[0];
-
-    tempSheet.getRange(1,1,rows.length,5).setValues(rows);
-    tempSheet.getRange(1,1,1,5).setFontWeight("bold");
-    tempSheet.autoResizeColumns(1,5);
-
-    SpreadsheetApp.flush();
-
-    const exportUrl="https://docs.google.com/spreadsheets/d/"+tempSS.getId()+"/export?format=xlsx";
-
-    const response=UrlFetchApp.fetch(exportUrl,{
-      headers:{
-        Authorization:"Bearer "+ScriptApp.getOAuthToken()
-      },
-      muteHttpExceptions:true
+    data.forEach(function(order){
+      if(!order||!order.completed_time)return;
+      const assigned=String(order.driver_id||"").split(",").map(function(v){return v.trim();});
+      if(assigned.indexOf(driverId)<0||!excelDateInRange_(order.completed_time,startDateStr,endDateStr))return;
+      rows.push([String(order.order_id||""),String(order.product||""),excelRouteText_(order.route),String(order.driver_id||""),excelKstDateTime_(order.completed_time)]);
     });
-
-    const tempFile=DriveApp.getFileById(tempSS.getId());
-    tempFile.setTrashed(true);
-
-    if(response.getResponseCode()!==200){
-      return "ERROR: Excel 파일 생성 실패 ("+response.getResponseCode()+")";
-    }
-
-    return{
-      fileName:"부름이_"+driverId+"_"+startDateStr+"_"+endDateStr+".xlsx",
-      mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      base64:Utilities.base64Encode(response.getBlob().getBytes())
-    };
-
-  }catch(err){
-    return "ERROR: "+err.message;
-  }
+    if(rows.length<=1)return "ERROR: 해당 기간에 배송완료 내역이 없습니다.";
+    tempSS=SpreadsheetApp.create("부름이_임시_엑셀_"+Date.now());
+    const sh=tempSS.getSheets()[0];
+    sh.getRange(1,1,rows.length,5).setValues(rows);
+    sh.getRange(1,1,1,5).setFontWeight("bold");sh.setFrozenRows(1);sh.autoResizeColumns(1,5);SpreadsheetApp.flush();
+    const response=UrlFetchApp.fetch("https://docs.google.com/spreadsheets/d/"+tempSS.getId()+"/export?format=xlsx",{headers:{Authorization:"Bearer "+ScriptApp.getOAuthToken()},muteHttpExceptions:true});
+    if(response.getResponseCode()!==200)return "ERROR: Excel 파일 생성 실패 ("+response.getResponseCode()+")";
+    return {fileName:"부름이_"+driverId+"_"+startDateStr+"_"+endDateStr+".xlsx",mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",base64:Utilities.base64Encode(response.getBlob().getBytes())};
+  }catch(err){Logger.log("createDriverOrdersExcel 오류: "+err.message);return "ERROR: "+err.message;}
+  finally{if(tempSS){try{DriveApp.getFileById(tempSS.getId()).setTrashed(true);}catch(e){Logger.log("임시 엑셀 정리 실패: "+e.message);}}}
 }
 
 function getDashboardSummaryServer() {
