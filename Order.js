@@ -793,36 +793,14 @@ function updateOrderDetails(orderId,productName,routeArray,uploadFiles){
 function fetchOrdersForExcel(startDateStr,endDateStr){
     try{
         const supabaseResult=getSupabaseOrdersResult();
-        if(!supabaseResult||supabaseResult.success!==true||!Array.isArray(supabaseResult.data)){
-            const message=supabaseResult&&supabaseResult.error?supabaseResult.error:"Supabase 조회 결과가 올바르지 않습니다.";
-            throw new Error("Supabase 오더 조회 실패: "+message);
-        }
-        const startDate=String(startDateStr||"").trim().slice(0,10);
-        const endDate=String(endDateStr||"").trim().slice(0,10);
-        const orders=[];
-        function kstDate(value){
-            if(!value)return "";
-            const d=value instanceof Date?value:new Date(value);
-            return isNaN(d.getTime())?"":Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd");
-        }
-        function kstDateTime(value){
-            if(!value)return "";
-            const d=value instanceof Date?value:new Date(value);
-            return isNaN(d.getTime())?String(value):Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd HH:mm:ss");
-        }
-        supabaseResult.data.forEach(function(row){
-            if(!row||!row.completed_time)return;
-            const completedDate=kstDate(row.completed_time);
-            if(!completedDate||(startDate&&completedDate<startDate)||(endDate&&completedDate>endDate))return;
-            const driverId=String(row.driver_id||"").trim();
-            let driverName=driverId;
-            if(driverId){try{const info=findDriverRow(driverId);if(info&&info.data&&info.data[DRIVER_COL.NAME])driverName=String(info.data[DRIVER_COL.NAME]).trim();}catch(e){Logger.log("엑셀 기사 이름 조회 실패: "+e.toString());}}
-            let route="";
-            try{const raw=row.route;const parsed=typeof raw==="string"&&raw.trim().startsWith("[")?JSON.parse(raw):raw;route=Array.isArray(parsed)?parsed.join(" ➡️ "):String(parsed||"");}catch(e){route=String(row.route||"");}
-            orders.push({id:String(row.order_id||""),productName:String(row.product||""),route:route,driverName:driverName,regTime:kstDateTime(row.completed_time),status:String(row.status||"배송완료"),deliveryTime:kstDateTime(row.completed_time)});
-        });
-        Logger.log("Supabase 배송완료일 기준 엑셀 조회 성공: "+orders.length+"건 / 한국시간");
-        return orders;
+        if(!supabaseResult||supabaseResult.success!==true||!Array.isArray(supabaseResult.data)){const message=supabaseResult&&supabaseResult.error?supabaseResult.error:"Supabase 조회 결과가 올바르지 않습니다.";throw new Error("Supabase 오더 조회 실패: "+message);}
+        const startDate=String(startDateStr||"").trim().slice(0,10),endDate=String(endDateStr||"").trim().slice(0,10),orders=[];
+        function dateKst(v){if(!v)return "";const d=v instanceof Date?v:new Date(v);return isNaN(d.getTime())?"":Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd");}
+        function dateTimeKst(v){if(!v)return "";const d=v instanceof Date?v:new Date(v);return isNaN(d.getTime())?String(v):Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd HH:mm:ss");}
+        function routeText(v){try{const p=typeof v==="string"&&v.trim().startsWith("[")?JSON.parse(v):v;return Array.isArray(p)?p.join(" ➡️ "):String(p||"");}catch(e){return String(v||"");}}
+        function driverName(id){try{const info=findDriverRow(id);return info&&info.data&&typeof DRIVER_COL!=="undefined"?String(info.data[DRIVER_COL.NAME]||id):String(id||"");}catch(e){return String(id||"");}}
+        supabaseResult.data.forEach(function(row){if(!row||String(row.status||"").trim()!=="배송완료"||!row.completed_time)return;const day=dateKst(row.completed_time);if(!day||(startDate&&day<startDate)||(endDate&&day>endDate))return;const id=String(row.driver_id||"").trim();orders.push({id:String(row.order_id||""),productName:String(row.product||""),route:routeText(row.route),driverName:driverName(id),regTime:dateTimeKst(row.created_at||row.register),deliveryTime:dateTimeKst(row.completed_time),status:String(row.status||"배송완료")});});
+        Logger.log("Supabase 배송완료일 기준 엑셀 조회 성공: "+orders.length+"건 / 한국시간");return orders;
     }catch(err){Logger.log("Supabase 배송완료일 엑셀 조회 실패: "+err.toString());return "ERROR_MSG: "+err.toString();}
 }
 
