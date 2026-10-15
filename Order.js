@@ -481,200 +481,55 @@ function redispatchOrder(orderId,driverId){
     }catch(e){Logger.log("redispatchOrder 오류: "+e.toString());return{success:false,message:"재배차 처리 중 오류 발생: "+e.message};}
 }
 function updateIndividualLocationStatus(orderId,routeIdx,nextStatus){
-    const __perfStart=Date.now();
-    let __perfStage=__perfStart;
+    const started=Date.now();
     try{
-        orderId=String(orderId||"").trim();
-        routeIdx=Number(routeIdx);
-        nextStatus=String(nextStatus||"").trim();
-
-        if(!orderId)return{success:false};
-        if(!Number.isInteger(routeIdx)||routeIdx<0)return{success:false};
-        if(!nextStatus)return{success:false};
-
-        const order=findOrderRow(orderId);
-        Logger.log("[배송상태 시간측정] 오더 조회 = "+(Date.now()-__perfStage)+"ms");
-        __perfStage=Date.now();
+        orderId=String(orderId||"").trim();routeIdx=Number(routeIdx);nextStatus=String(nextStatus||"").trim();
+        if(!orderId||!Number.isInteger(routeIdx)||routeIdx<0||!nextStatus)return{success:false};
+        const order=getOrderRowFromSupabase(orderId);
         if(!order||!Array.isArray(order.data))return{success:false};
-
-        const status=String(order.data[ORDER_COL.ROUTE_STATUS]||"").split(",").map(function(v){return String(v||"").trim()||"미픽업";});
-
-        if(routeIdx>=status.length)return{success:false};
-
-        status[routeIdx]=nextStatus;
-
-        const newRouteStatus=status.join(",");
-
-        const sheet=getOrderSheet();
-        if(!sheet)return{success:false};
-
-        updateCell(sheet,order.row,ORDER_COL.ROUTE_STATUS+1,newRouteStatus);
-        SpreadsheetApp.flush();
+        const statuses=String(order.data[ORDER_COL.ROUTE_STATUS]||"").split(",").map(function(v){return String(v||"").trim()||"미픽업";});
+        if(routeIdx>=statuses.length)return{success:false};
+        statuses[routeIdx]=nextStatus;
+        const routeStatus=statuses.join(",");
+        const saved=updateOrderToSupabase(orderId,{route_status:routeStatus});
+        if(!saved||saved.success!==true)throw new Error("Supabase 경유지 상태 저장 실패");
         clearProjectCache();
-        Logger.log("[배송상태 시간측정] 시트 저장+flush+캐시 = "+(Date.now()-__perfStage)+"ms");
-        __perfStage=Date.now();
-
-        Logger.log("✅ Google Sheet 경유지 상태 저장 완료 = "+orderId);
-        Logger.log("📍 routeIdx = "+routeIdx+" / nextStatus = "+nextStatus);
-        Logger.log("📍 route_status = "+newRouteStatus);
-
-        try{
-            const supabaseResult=updateOrderToSupabase(orderId,{route_status:newRouteStatus});
-            Logger.log("[배송상태 시간측정] Supabase PATCH = "+(Date.now()-__perfStage)+"ms");
-            Logger.log("🔄 경유지 상태 Supabase PATCH = "+JSON.stringify(supabaseResult));
-        }catch(supabaseErr){
-            Logger.log("[배송상태 시간측정] Supabase PATCH 예외까지 = "+(Date.now()-__perfStage)+"ms");
-            Logger.log("❌ 경유지 상태 Supabase PATCH 실패 = "+supabaseErr.toString());
-        }
-
-        Logger.log("[배송상태 시간측정] 서버 전체 = "+(Date.now()-__perfStart)+"ms");
+        Logger.log("[배송상태 시간측정] Supabase 저장 포함 전체 = "+(Date.now()-started)+"ms");
         return{success:true};
-    }catch(e){
-        Logger.log("❌ updateIndividualLocationStatus 오류 = "+e.toString());
-        Logger.log(e.stack||"");
-        return{success:false};
-    }
+    }catch(e){Logger.log("updateIndividualLocationStatus 오류 = "+e.toString());return{success:false,message:e.message};}
 }
-
-//==================================================
-// 배송 완료
-// Google Sheet + Supabase 직접 PATCH
-//==================================================
 function completeOrder(orderId){
     try{
         orderId=String(orderId||"").trim();
-        Logger.log("========================================");
-        Logger.log("📦 completeOrder 호출");
-        Logger.log("orderId = "+orderId);
-
-        const order=findOrderRow(orderId);
-        if(!order||!Array.isArray(order.data)){
-            Logger.log("❌ 오더를 찾을 수 없음");
-            return false;
-        }
-
+        if(!orderId)return false;
+        const order=getOrderRowFromSupabase(orderId);
+        if(!order||!Array.isArray(order.data))return false;
         const driverId=String(order.data[ORDER_COL.DRIVER_ID]||"").trim();
-        Logger.log("🚚 driverId = "+driverId);
-
-        const completionTime=new Date();
         const count=String(order.data[ORDER_COL.ROUTE]||"").split("➡️").length;
-        const result=[];
-
-        for(let i=0;i<count;i++){result.push("배송완료");}
-
-        const finalRouteStatus=result.join(",");
-
-        const sheet=getOrderSheet();
-        if(!sheet){
-            Logger.log("❌ 오더 시트를 찾을 수 없음");
-            return false;
-        }
-
-        updateCell(sheet,order.row,ORDER_COL.STATUS+1,"배송완료");
-        updateCell(sheet,order.row,ORDER_COL.COMPLETED_TIME+1,completionTime);
-        updateCell(sheet,order.row,ORDER_COL.ROUTE_STATUS+1,finalRouteStatus);
-
-        SpreadsheetApp.flush();
+        const finalRouteStatus=new Array(Math.max(1,count)).fill("배송완료").join(",");
+        const completionTime=new Date();
+        const saved=updateOrderToSupabase(orderId,{status:"배송완료",completed_time:completionTime,route_status:finalRouteStatus});
+        if(!saved||saved.success!==true)throw new Error("Supabase 배송완료 저장 실패");
         clearProjectCache();
-
-        Logger.log("✅ Google Sheet 배송완료 저장 완료 = "+orderId);
-        Logger.log("📍 route_status = "+finalRouteStatus);
-        Logger.log("🕒 completed_time = "+completionTime);
-
-        //==================================================
-        // ★ Supabase 직접 PATCH
-        //==================================================
-        try{
-            const supabaseResult=updateOrderToSupabase(orderId,{
-                status:"배송완료",
-                completed_time:completionTime,
-                route_status:finalRouteStatus
-            });
-
-            Logger.log("🔄 배송완료 Supabase PATCH = "+JSON.stringify(supabaseResult));
-        }catch(supabaseErr){
-            Logger.log("❌ 배송완료 Supabase PATCH 실패 = "+supabaseErr.toString());
-        }
-
-        Logger.log("✅ 오더 배송완료 DB 처리 완료");
-
-        try{
-            Logger.log("📡 관리자 배송완료 FCM 호출 시작");
-            const pushResult=notifyAdminsOrderEvent("COMPLETED",orderId,driverId,order.data);
-            Logger.log("📡 관리자 배송완료 FCM 결과 = "+pushResult);
-        }catch(adminErr){
-            Logger.log("❌ 관리자 완료 FCM 예외 = "+adminErr.toString());
-        }
-
-        try{
-            Logger.log("📡 MasterApp 배송완료 FCM 호출 시작");
-            const masterPushResult=notifyMasterAppOrderEvent("COMPLETED",orderId,driverId,order.data);
-            Logger.log("📡 MasterApp 배송완료 FCM 결과 = "+masterPushResult);
-        }catch(masterErr){
-            Logger.log("❌ MasterApp 완료 FCM 예외 = "+masterErr.toString());
-        }
-
-        Logger.log("========================================");
+        try{notifyAdminsOrderEvent("COMPLETED",orderId,driverId,order.data);}catch(e){Logger.log("관리자 완료 FCM 예외 = "+e.toString());}
+        try{notifyMasterAppOrderEvent("COMPLETED",orderId,driverId,order.data);}catch(e){Logger.log("MasterApp 완료 FCM 예외 = "+e.toString());}
         return true;
-
-    }catch(e){
-        Logger.log("❌ completeOrder 오류 = "+e.toString());
-        Logger.log(e.stack||"");
-        return false;
-    }
+    }catch(e){Logger.log("completeOrder 오류 = "+e.toString());return false;}
 }
-
-//==================================================
-// 오더 취소
-//==================================================
 function cancelOrder(orderId){
     try{
         orderId=String(orderId||"").trim();
-
-        const order=findOrderRow(orderId);
+        if(!orderId)return{success:false,message:"오더 ID가 없습니다."};
+        const order=getOrderRowFromSupabase(orderId);
         if(!order||!Array.isArray(order.data))return{success:false,message:"오더 없음"};
-
         const image=String(order.data[ORDER_COL.IMAGE]||"");
-
-        if(image){
-            image.split("|").forEach(function(url){
-                const id=getFileId(url);
-                if(id){
-                    try{DriveApp.getFileById(id).setTrashed(true);}catch(e){}
-                }
-            });
-        }
-
-        getOrderSheet().deleteRow(order.row);
-        SpreadsheetApp.flush();
+        if(image)image.split("|").forEach(function(url){const id=getFileId(url);if(id){try{DriveApp.getFileById(id).setTrashed(true);}catch(e){}}});
+        const result=deleteOrderFromSupabase(orderId);
+        if(!result||result.success!==true)throw new Error("Supabase 오더 삭제 실패");
         clearProjectCache();
-
-        //==================================================
-        // ★ Google Sheet 삭제 후 Supabase도 삭제
-        //==================================================
-        try{
-            const sbResult=deleteOrderFromSupabase(orderId);
-
-            if(!sbResult.success){
-                Logger.log("⚠️ Supabase 오더 삭제 실패 = "+orderId);
-            }else{
-                Logger.log("✅ Google Sheet + Supabase 오더 삭제 완료 = "+orderId);
-            }
-        }catch(supabaseErr){
-            Logger.log("❌ Supabase 삭제 동기화 오류 = "+supabaseErr.toString());
-        }
-
         return{success:true,message:"삭제 완료"};
-
-    }catch(e){
-        Logger.log("❌ cancelOrder 오류 = "+e.toString());
-        return{success:false,message:"오더 취소 중 오류가 발생했습니다: "+e.message};
-    }
+    }catch(e){Logger.log("cancelOrder 오류 = "+e.toString());return{success:false,message:"오더 취소 중 오류가 발생했습니다: "+e.message};}
 }
-
-//==================================================
-// 오늘 통계
-//==================================================
 function getTodayStats(driverId){
     let data=[];
     let waiting=0;
