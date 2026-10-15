@@ -702,13 +702,9 @@ function updateOrderDetails(orderId,productName,routeArray,uploadFiles){
         if(!orderId)return{success:false,message:"오더ID가 없습니다."};
         if(!productName)productName="상품명 미기재";
 
-        var order=findOrderRow(orderId);
+        var order=getOrderRowFromSupabase(orderId);
         if(!order||!Array.isArray(order.data))return{success:false,message:"수정할 오더를 찾을 수 없습니다."};
 
-        var sheet=getOrderSheet();
-        if(!sheet)return{success:false,message:"오더 시트를 찾을 수 없습니다."};
-
-        var rowIndex=order.row;
         var oldRouteStr=String(order.data[ORDER_COL.ROUTE]||"").trim();
 
         var oldRoutes=oldRouteStr?oldRouteStr.split("➡️").map(function(v){return String(v||"").trim();}).filter(function(v){return v!=="";}):[];
@@ -750,10 +746,6 @@ function updateOrderDetails(orderId,productName,routeArray,uploadFiles){
 
         var finalRoute=cleanRoutes.join(" ➡️ ");
         var finalRouteStatus=newStatuses.join(",");
-
-        updateCell(sheet,rowIndex,ORDER_COL.PRODUCT+1,productName);
-        updateCell(sheet,rowIndex,ORDER_COL.ROUTE+1,finalRoute);
-        updateCell(sheet,rowIndex,ORDER_COL.ROUTE_STATUS+1,finalRouteStatus);
 
         var addedImageUrls=[];
         var addedThumbUrls=[];
@@ -797,11 +789,8 @@ function updateOrderDetails(orderId,productName,routeArray,uploadFiles){
             finalImageUrl=oldImages.concat(addedImageUrls).join("|");
             finalThumbUrl=oldThumbs.concat(addedThumbUrls).join("|");
 
-            updateCell(sheet,rowIndex,ORDER_COL.IMAGE+1,finalImageUrl);
-            updateCell(sheet,rowIndex,ORDER_COL.THUMB+1,finalThumbUrl);
         }
 
-        SpreadsheetApp.flush();
         clearProjectCache();
 
         //==================================================
@@ -820,26 +809,11 @@ function updateOrderDetails(orderId,productName,routeArray,uploadFiles){
         //==================================================
         // ★ Google Sheet 수정 완료 후 Supabase 직접 PATCH
         //==================================================
-        try{
-            var updateData={
-                product:productName,
-                route:finalRoute,
-                route_status:finalRouteStatus
-            };
-
-            if(addedImageUrls.length>0){
-                updateData.image_url=finalImageUrl;
-                updateData.thumb_url=finalThumbUrl;
-            }
-
-            var supabaseResult=updateOrderToSupabase(orderId,updateData);
-
-            Logger.log("🔄 오더 수정 Supabase PATCH = "+orderId);
-            Logger.log("Supabase 수정 데이터 = "+JSON.stringify(updateData));
-            Logger.log("Supabase 결과 = "+JSON.stringify(supabaseResult));
-        }catch(supabaseErr){
-            Logger.log("❌ 오더 수정 Supabase PATCH 실패 = "+orderId+" / "+supabaseErr.toString());
-        }
+        var updateData={product:productName,route:finalRoute,route_status:finalRouteStatus};
+        if(addedImageUrls.length>0){updateData.image_url=finalImageUrl;updateData.thumb_url=finalThumbUrl;}
+        var supabaseResult=updateOrderToSupabase(orderId,updateData);
+        if(!supabaseResult||supabaseResult.success!==true)throw new Error("Supabase 오더 수정 저장 실패");
+        Logger.log("✅ Supabase 오더 수정 완료 = "+orderId);
 
         Logger.log("========================================");
         Logger.log("🛠️ 기존 오더 정정 완료");
