@@ -843,19 +843,23 @@ function getOrderDashboardData(keyword){
             Logger.log("정정정보 로드 실패: "+correctedErr.message);
         }
 
+        // 기사 ID·이름은 Supabase drivers 테이블에서 조회합니다.
+        // GPS, 전화번호 등 다른 기사 정보의 기존 시트 사용 경로는 변경하지 않습니다.
         var driverMap={};
         try{
-            var driverData=getDriverData();
-            if(driverData&&driverData.length>1){
-                for(var d=1;d<driverData.length;d++){
-                    var dRow=driverData[d];
-                    var dId=String(dRow[DRIVER_COL.ID]||"").trim();
-                    var dName=String(dRow[DRIVER_COL.NAME]||"").trim();
+            var driverData=supabaseRequest("drivers?select=driver_id,name&order=driver_id.asc","GET");
+            if(Array.isArray(driverData)){
+                for(var d=0;d<driverData.length;d++){
+                    var dRow=driverData[d]||{};
+                    var dId=String(dRow.driver_id||"").trim();
+                    var dName=String(dRow.name||"").trim();
                     if(dId)driverMap[dId]=dName;
                 }
+            }else{
+                Logger.log("Supabase 기사 조회 결과가 배열이 아닙니다.");
             }
         }catch(e){
-            Logger.log("기사 데이터 로드 실패: "+e.message);
+            Logger.log("Supabase 기사 ID·이름 조회 실패: "+e.message);
         }
 
         var formattedOrders=[];
