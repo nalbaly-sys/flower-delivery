@@ -187,6 +187,29 @@ function addCompositeOrder(productName,routeArray,uploadFiles,assignType,targetD
 // 오더 목록 조회: Supabase 우선 + Google Sheet 보완
 // 기존 화면의 JSON 배열 형식 유지
 //==================================================
+// Supabase 오더 객체를 기존 ORDER_COL 배열 형식으로 변환합니다.
+function getOrderRowFromSupabase(orderId){
+    const result=getSupabaseOrderByIdResult(orderId);
+    if(!result||!result.success||!result.data)return null;
+    const item=result.data;
+    const row=[];
+    row[ORDER_COL.ORDER_ID]=item.order_id||"";
+    row[ORDER_COL.REGISTER]=item.register||"";
+    row[ORDER_COL.DATE]=item.created_at||"";
+    row[ORDER_COL.PRODUCT]=item.product||"";
+    row[ORDER_COL.ROUTE]=item.route||"";
+    row[ORDER_COL.ASSIGN_TYPE]=item.assign_type||"";
+    row[ORDER_COL.DRIVER_ID]=item.driver_id||"";
+    row[ORDER_COL.STATUS]=item.status||"미확인";
+    row[ORDER_COL.IMAGE]=item.image_url||"";
+    row[ORDER_COL.THUMB]=item.thumb_url||"";
+    row[ORDER_COL.ROUTE_STATUS]=item.route_status||"";
+    row[ORDER_COL.REJECT_DRIVER]=item.reject_driver||"";
+    row[ORDER_COL.REJECT_TIME]=item.reject_time||"";
+    row[ORDER_COL.COMPLETED_TIME]=item.completed_time||"";
+    return {row:null,data:row,item:item};
+}
+
 function getOrdersData(){
     const result = [];
     const seenOrderIds = {};
@@ -367,47 +390,29 @@ function acceptFleetingOrder(orderId,driverId){
 // 지정배차,재배차 수락
 //==================================================
 function acceptOrder(orderId,driverId){
+    const lock=LockService.getScriptLock();
     try{
-        orderId=String(orderId||"").trim();
-        driverId=String(driverId||"").trim();
+        orderId=String(orderId||"").trim();driverId=String(driverId||"").trim();
         if(!orderId)return{success:false,msg:"오더 ID가 없습니다."};
         if(!driverId)return{success:false,msg:"기사 ID가 없습니다."};
-        const order=findOrderRow(orderId);
+        lock.waitLock(5000);
+        const order=getOrderRowFromSupabase(orderId);
         if(!order||!Array.isArray(order.data))return{success:false,msg:"오더를 찾을 수 없습니다."};
         const assignType=String(order.data[ORDER_COL.ASSIGN_TYPE]||"").trim();
         if(assignType==="선착순배차")return acceptFleetingOrder(orderId,driverId);
-        if(assignType==="지정배차"||assignType==="재배차"||assignType===""){
-            const sheet=getOrderSheet();
-            if(!sheet)return{success:false,msg:"오더 시트를 찾을 수 없습니다."};
-            const status=String(order.data[ORDER_COL.STATUS]||"").trim();
-            if(status==="배송완료"||status==="배송중")return{success:false,msg:"이미 처리된 오더입니다."};
-            if(status==="수락")return{success:false,msg:"이미 수락된 오더입니다."};
-            updateCell(sheet,order.row,ORDER_COL.DRIVER_ID+1,driverId);
-            updateCell(sheet,order.row,ORDER_COL.STATUS+1,"수락");
-            SpreadsheetApp.flush();
-            clearProjectCache();
-            try{
-                const sbResult=updateOrderToSupabase(orderId,{driver_id:driverId,status:"수락"});
-                Logger.log("✅ 지정배차/재배차 수락 Supabase PATCH = "+JSON.stringify(sbResult));
-            }catch(sbErr){
-                Logger.log("⚠️ Google Sheet 수락 완료 / Supabase 수락 동기화 실패 = "+sbErr.toString());
-            }
-            try{notifyAdminsOrderEvent("ACCEPTED",orderId,driverId,order.data);}catch(e){Logger.log("관리자 수락 FCM 예외 = "+e.toString());}
-            try{notifyMasterAppOrderEvent("ACCEPTED",orderId,driverId,order.data);}catch(e){Logger.log("MasterApp 수락 FCM 예외 = "+e.toString());}
-            return{success:true,msg:"배차 수락 완료"};
-        }
-        return{success:false,msg:"지원하지 않는 배차유형입니다: "+assignType};
-    }catch(e){
-        Logger.log("❌ acceptOrder 오류 = "+e.toString());
-        Logger.log(e.stack||"");
-        return{success:false,msg:"수락 처리 중 오류가 발생했습니다: "+e.message};
-    }
+        if(assignType!=="지정배차"&&assignType!=="재배차"&&assignType!=="")return{success:false,msg:"지원하지 않는 배차유형입니다: "+assignType};
+        const status=String(order.data[ORDER_COL.STATUS]||"").trim();
+        if(status==="배송완료"||status==="배송중")return{success:false,msg:"이미 처리된 오더입니다."};
+        if(status==="수락")return{success:false,msg:"이미 수락된 오더입니다."};
+        const saved=updateOrderToSupabase(orderId,{driver_id:driverId,status:"수락"});
+        if(!saved||saved.success!==true)throw new Error("Supabase 수락 저장 실패");
+        clearProjectCache();
+        try{notifyAdminsOrderEvent("ACCEPTED",orderId,driverId,order.data);}catch(e){Logger.log("관리자 수락 FCM 예외 = "+e.toString());}
+        try{notifyMasterAppOrderEvent("ACCEPTED",orderId,driverId,order.data);}catch(e){Logger.log("MasterApp 수락 FCM 예외 = "+e.toString());}
+        return{success:true,msg:"배차 수락 완료"};
+    }catch(e){Logger.log("acceptOrder 오류 = "+e.toString());return{success:false,msg:"수락 처리 중 오류가 발생했습니다: "+e.message};}
+    finally{try{lock.releaseLock();}catch(e){}}
 }
-
-//==================================================
-// 선착순 거절
-// Google Sheet + Supabase PATCH
-//==================================================
 function rejectFleetingOrder(orderId,driverId){
     try{
         orderId=String(orderId||"").trim();
@@ -454,64 +459,27 @@ function rejectFleetingOrder(orderId,driverId){
 //==================================================
 function redispatchOrder(orderId,driverId){
     try{
-        const order=findOrderRow(orderId);
-        if(!order||!Array.isArray(order.data))return{success:false,message:"오더 없음"};
-        orderId=String(orderId||"").trim();
-        driverId=String(driverId||"").trim();
+        orderId=String(orderId||"").trim();driverId=String(driverId||"").trim();
         if(!orderId)return{success:false,message:"오더 ID가 없습니다."};
         if(!driverId)return{success:false,message:"기사 ID가 없습니다."};
-
+        const order=getOrderRowFromSupabase(orderId);
+        if(!order||!Array.isArray(order.data))return{success:false,message:"오더 없음"};
         const routeText=String(order.data[ORDER_COL.ROUTE]||"");
-        const sheet=getOrderSheet();
-        if(!sheet)return{success:false,message:"오더 시트를 찾을 수 없습니다."};
-
-        updateCell(sheet,order.row,ORDER_COL.DRIVER_ID+1,driverId);
-        updateCell(sheet,order.row,ORDER_COL.STATUS+1,"미확인");
-        SpreadsheetApp.flush();
+        const saved=updateOrderToSupabase(orderId,{driver_id:driverId,status:"미확인"});
+        if(!saved||saved.success!==true)throw new Error("Supabase 재배차 저장 실패");
         clearProjectCache();
-
-        Logger.log("✅ Google Sheet 재배차 저장 완료 = "+orderId+" / driver="+driverId);
-
-        try{
-            const supabaseResult=updateOrderToSupabase(orderId,{driver_id:driverId,status:"미확인"});
-            Logger.log("🔄 재배차 Supabase PATCH = "+JSON.stringify(supabaseResult));
-        }catch(supabaseErr){
-            Logger.log("❌ 재배차 Supabase PATCH 실패 = "+supabaseErr.toString());
-        }
-
         const productName=String(order.data[ORDER_COL.PRODUCT]||"복합 배송").trim();
         const imageData=String(order.data[ORDER_COL.IMAGE]||"").trim();
         const thumbData=String(order.data[ORDER_COL.THUMB]||"").trim();
         const hasImage=(imageData!==""&&imageData!=="|"&&imageData!=="null")||(thumbData!==""&&thumbData!=="|"&&thumbData!=="null");
-
-        const props=PropertiesService.getScriptProperties();
-        let correctedMap={};
-        try{
-            const correctedJSON=props.getProperty("ORDER_CORRECTED_MAP");
-            if(correctedJSON)correctedMap=JSON.parse(correctedJSON)||{};
-        }catch(e){}
-
-        const isCorrected=correctedMap[String(orderId)]===true;
-        let pushBody=(isCorrected?"🛠️(정정) ":"")+"("+productName+")📍 "+(routeText||"경로 정보 없음");
+        const props=PropertiesService.getScriptProperties();let correctedMap={};
+        try{const correctedJSON=props.getProperty("ORDER_CORRECTED_MAP");if(correctedJSON)correctedMap=JSON.parse(correctedJSON)||{};}catch(e){}
+        let pushBody=(correctedMap[orderId]===true?"🛠️(정정) ":"")+"("+productName+")📍 "+(routeText||"경로 정보 없음");
         if(hasImage)pushBody+=" 🖼️ 이미지참조";
-
-        try{
-            sendFcmPushToDriver(driverId,"📦 새로운 오더가 배정되었습니다!",pushBody,{orderId:orderId,type:"NEW_ORDER",collapse_key:orderId,timestamp:String(new Date().getTime())});
-        }catch(pushErr){
-            Logger.log("재배차 푸시 예외: "+pushErr.toString());
-        }
-
+        try{sendFcmPushToDriver(driverId,"📦 새로운 오더가 배정되었습니다!",pushBody,{orderId:orderId,type:"NEW_ORDER",collapse_key:orderId,timestamp:String(new Date().getTime())});}catch(e){Logger.log("재배차 푸시 예외: "+e.toString());}
         return{success:true};
-    }catch(e){
-        Logger.log("redispatchOrder 치명적 오류: "+e.toString());
-        return{success:false,message:"재배차 처리 중 오류 발생: "+e.message};
-    }
+    }catch(e){Logger.log("redispatchOrder 오류: "+e.toString());return{success:false,message:"재배차 처리 중 오류 발생: "+e.message};}
 }
-
-//==================================================
-// 경유지 상태 변경
-// Google Sheet + Supabase PATCH
-//==================================================
 function updateIndividualLocationStatus(orderId,routeIdx,nextStatus){
     const __perfStart=Date.now();
     let __perfStage=__perfStart;
