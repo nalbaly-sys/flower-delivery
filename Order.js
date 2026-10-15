@@ -784,20 +784,31 @@ function cancelOrder(orderId){
 // 오늘 통계
 //==================================================
 function getTodayStats(driverId){
-    const data=getOrderData();
+    let data=[];
     let waiting=0;
     let active=0;
+    driverId=String(driverId||"").trim();
+    if(!driverId)return JSON.stringify({waiting:0,active:0});
 
-    if(!data||data.length<=1)return JSON.stringify({waiting:0,active:0});
+    // getOrdersData()는 Supabase를 우선 조회하고, 조회 실패 때만 Sheet를 대체 사용합니다.
+    // 반환 배열에는 헤더 행이 없으므로 0번 인덱스부터 집계합니다.
+    try{
+        const raw=getOrdersData();
+        data=typeof raw==="string"?JSON.parse(raw):raw;
+        if(!Array.isArray(data))data=[];
+    }catch(e){
+        Logger.log("❌ 오늘 통계 오더 조회 실패: "+e.toString());
+        data=[];
+    }
 
-    for(let i=1;i<data.length;i++){
-        if(!data[i])continue;
+    for(let i=0;i<data.length;i++){
+        const row=data[i];
+        if(!row)continue;
 
-        const assignedDriver=String(data[i][ORDER_COL.DRIVER_ID]||"").trim();
-        if(assignedDriver!==String(driverId).trim())continue;
+        const assignedDriver=String(row[ORDER_COL.DRIVER_ID]||"").trim();
+        if(assignedDriver!==driverId)continue;
 
-        const status=String(data[i][ORDER_COL.STATUS]||"").replace(/\s+/g,"").trim();
-
+        const status=String(row[ORDER_COL.STATUS]||"").replace(/\s+/g,"").trim();
         if(status.includes("완료")||status.includes("배송완료"))continue;
         if(status.includes("미확인")||status==="")waiting++;
         else if(status.includes("진행중")||status.includes("수락")||status.includes("배송중"))active++;
