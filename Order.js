@@ -70,107 +70,31 @@ function addCompositeOrder(productName,routeArray,uploadFiles,assignType,targetD
         }
 
         //==================================================
-        // 1. Google Sheet 저장
-        // 현재 운영 단계에서는 Sheet를 원본 DB로 유지
+        // Supabase를 오더의 단일 원본 DB로 사용
+        // Google Sheet에는 오더를 저장하지 않습니다.
         //==================================================
-        const orderSheet = getOrderSheet();
+        const orderData = {
+            order_id: String(row[ORDER_COL.ORDER_ID] || "").trim(),
+            register: String(row[ORDER_COL.REGISTER] || ""),
+            created_at: row[ORDER_COL.DATE] || null,
+            product: String(row[ORDER_COL.PRODUCT] || ""),
+            route: String(row[ORDER_COL.ROUTE] || ""),
+            assign_type: String(row[ORDER_COL.ASSIGN_TYPE] || "지정배차"),
+            driver_id: String(row[ORDER_COL.DRIVER_ID] || ""),
+            status: String(row[ORDER_COL.STATUS] || "미확인"),
+            image_url: String(row[ORDER_COL.IMAGE] || ""),
+            thumb_url: String(row[ORDER_COL.THUMB] || ""),
+            route_status: String(row[ORDER_COL.ROUTE_STATUS] || ""),
+            reject_driver: String(row[ORDER_COL.REJECT_DRIVER] || ""),
+            reject_time: row[ORDER_COL.REJECT_TIME] || null,
+            completed_time: row[ORDER_COL.COMPLETED_TIME] || null
+        };
 
-        if(!orderSheet){
-            throw new Error(
-                "오더 시트가 없습니다: " +
-                ORDER_SHEET_NAME
-            );
+        const supabaseSaved = syncOrderToSupabase(orderData);
+        if (supabaseSaved !== true) {
+            throw new Error("Supabase 저장에 실패했습니다. 오더가 등록되지 않았습니다.");
         }
-
-        try{
-
-            orderSheet.appendRow(row);
-
-            SpreadsheetApp.flush();
-
-            Logger.log(
-                "✅ Google Sheet 신규 오더 저장 완료 = " +
-                orderId
-            );
-
-        }catch(sheetErr){
-
-            Logger.log(
-                "❌ Google Sheet 신규 오더 저장 실패 = " +
-                sheetErr.toString()
-            );
-
-            throw new Error(
-                "Google Sheet 저장 실패로 Supabase 저장을 중단합니다."
-            );
-        }
-
-
-        //==================================================
-        // 2. Google Sheet 저장 성공 후 Supabase 저장
-        //==================================================
-        try{
-
-            const orderData = {
-                order_id: String(row[ORDER_COL.ORDER_ID] || "").trim(),
-
-                register: String(row[ORDER_COL.REGISTER] || ""),
-
-                created_at:
-                    row[ORDER_COL.DATE] || null,
-
-                product:
-                    String(row[ORDER_COL.PRODUCT] || ""),
-
-                route:
-                    String(row[ORDER_COL.ROUTE] || ""),
-
-                assign_type:
-                    String(row[ORDER_COL.ASSIGN_TYPE] || "지정배차"),
-
-                driver_id:
-                    String(row[ORDER_COL.DRIVER_ID] || ""),
-
-                status:
-                    String(row[ORDER_COL.STATUS] || "미확인"),
-
-                image_url:
-                    String(row[ORDER_COL.IMAGE] || ""),
-
-                thumb_url:
-                    String(row[ORDER_COL.THUMB] || ""),
-
-                route_status:
-                    String(row[ORDER_COL.ROUTE_STATUS] || ""),
-
-                reject_driver:
-                    String(row[ORDER_COL.REJECT_DRIVER] || ""),
-
-                reject_time:
-                    row[ORDER_COL.REJECT_TIME] || null,
-
-                completed_time:
-                    row[ORDER_COL.COMPLETED_TIME] || null
-            };
-
-            const supabaseResult =
-                syncOrderToSupabase(orderData);
-
-            Logger.log(
-                "📦 신규 오더 Supabase 저장 결과 = " +
-                JSON.stringify(supabaseResult)
-            );
-
-        }catch(supabaseErr){
-
-            // Sheet는 정상 저장되었으므로
-            // Supabase 실패가 오더 등록 자체를 실패시키지는 않음
-            Logger.log(
-                "⚠️ Google Sheet 저장 완료 / Supabase 저장 실패 = " +
-                supabaseErr.toString()
-            );
-
-        }
+        Logger.log("✅ Supabase 신규 오더 저장 완료 = " + orderId);
 
         let pushBody="("+productName+")📍 "+routeText;
         if(hasImage)pushBody+=" 🖼️ 이미지참조";
