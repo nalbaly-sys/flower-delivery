@@ -792,66 +792,38 @@ function updateOrderDetails(orderId,productName,routeArray,uploadFiles){
 //==================================================
 function fetchOrdersForExcel(startDateStr,endDateStr){
     try{
-        // 엑셀 오더도 Google Sheets가 아닌 Supabase를 기준으로 조회합니다.
         const supabaseResult=getSupabaseOrdersResult();
         if(!supabaseResult||supabaseResult.success!==true||!Array.isArray(supabaseResult.data)){
             const message=supabaseResult&&supabaseResult.error?supabaseResult.error:"Supabase 조회 결과가 올바르지 않습니다.";
             throw new Error("Supabase 오더 조회 실패: "+message);
         }
-        const startDate=String(startDateStr||"").trim();
-        const endDate=String(endDateStr||"").trim();
+        const startDate=String(startDateStr||"").trim().slice(0,10);
+        const endDate=String(endDateStr||"").trim().slice(0,10);
         const orders=[];
-        function toKoreanDateTime(value){
-            if(value===null||value===undefined||value==="")return "";
-            const date=value instanceof Date?value:new Date(value);
-            return isNaN(date.getTime())?String(value):Utilities.formatDate(date,"Asia/Seoul","yyyy-MM-dd HH:mm:ss");
+        function kstDate(value){
+            if(!value)return "";
+            const d=value instanceof Date?value:new Date(value);
+            return isNaN(d.getTime())?"":Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd");
         }
-        function toKoreanDate(value){
-            if(value===null||value===undefined||value==="")return "";
-            const date=value instanceof Date?value:new Date(value);
-            return isNaN(date.getTime())?"":Utilities.formatDate(date,"Asia/Seoul","yyyy-MM-dd");
+        function kstDateTime(value){
+            if(!value)return "";
+            const d=value instanceof Date?value:new Date(value);
+            return isNaN(d.getTime())?String(value):Utilities.formatDate(d,"Asia/Seoul","yyyy-MM-dd HH:mm:ss");
         }
         supabaseResult.data.forEach(function(row){
-            if(!row)return;
-            const orderId=String(row.order_id||"").trim();
-            const rawDate=row.created_at||row.register||"";
-            if(!orderId||!rawDate)return;
-            const rowDate=toKoreanDate(rawDate);
-            if(!rowDate)return;
-            if(startDate&&rowDate<startDate)return;
-            if(endDate&&rowDate>endDate)return;
-
-            let routeStr="";
-            try{
-                const rawRoute=row.route;
-                if(rawRoute){
-                    const parsedRoute=typeof rawRoute==="string"&&rawRoute.trim().startsWith("[")?JSON.parse(rawRoute):rawRoute;
-                    routeStr=Array.isArray(parsedRoute)?parsedRoute.join(" ➡️ "):String(parsedRoute);
-                }
-            }catch(e){routeStr=String(row.route||"");}
-
+            if(!row||!row.completed_time)return;
+            const completedDate=kstDate(row.completed_time);
+            if(!completedDate||(startDate&&completedDate<startDate)||(endDate&&completedDate>endDate))return;
             const driverId=String(row.driver_id||"").trim();
-            let driverDisplayName=driverId;
-            if(driverId){
-                try{
-                    const driverInfo=findDriverRow(driverId);
-                    if(driverInfo&&driverInfo.data&&driverInfo.data[DRIVER_COL.NAME])driverDisplayName=String(driverInfo.data[DRIVER_COL.NAME]).trim();
-                }catch(e){Logger.log("엑셀 기사 이름 조회 실패: "+e.toString());}
-            }
-            orders.push({
-                id:orderId,
-                productName:String(row.product||""),
-                route:routeStr,
-                driverName:driverDisplayName,
-                regTime:toKoreanDateTime(rawDate)
-            });
+            let driverName=driverId;
+            if(driverId){try{const info=findDriverRow(driverId);if(info&&info.data&&info.data[DRIVER_COL.NAME])driverName=String(info.data[DRIVER_COL.NAME]).trim();}catch(e){Logger.log("엑셀 기사 이름 조회 실패: "+e.toString());}}
+            let route="";
+            try{const raw=row.route;const parsed=typeof raw==="string"&&raw.trim().startsWith("[")?JSON.parse(raw):raw;route=Array.isArray(parsed)?parsed.join(" ➡️ "):String(parsed||"");}catch(e){route=String(row.route||"");}
+            orders.push({id:String(row.order_id||""),productName:String(row.product||""),route:route,driverName:driverName,regTime:kstDateTime(row.completed_time),status:String(row.status||"배송완료"),deliveryTime:kstDateTime(row.completed_time)});
         });
-        Logger.log("✅ [Supabase 엑셀 조회 성공] "+orders.length+"건 / 날짜 Asia/Seoul");
+        Logger.log("Supabase 배송완료일 기준 엑셀 조회 성공: "+orders.length+"건 / 한국시간");
         return orders;
-    }catch(err){
-        Logger.log("❌ [Supabase 엑셀 조회 실패] "+err.toString());
-        return "ERROR_MSG: "+err.toString();
-    }
+    }catch(err){Logger.log("Supabase 배송완료일 엑셀 조회 실패: "+err.toString());return "ERROR_MSG: "+err.toString();}
 }
 
 //==================================================
