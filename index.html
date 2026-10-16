@@ -928,9 +928,9 @@ google.script.run.withSuccessHandler(function(result){
 if(typeof hideLoading==="function")hideLoading();
 if(typeof result==="string"&&result.startsWith("ERROR")){alert("서버 에러 발생: "+result);return}
 if(!result||!result.length){alert("해당 기간에 등록된 오더 내역이 없습니다.");return}
-let csv="\uFEFF오더ID,상품명,배송경로,기사명,등록시간,배송완료시간\r\n";
+let csv="\uFEFF오더ID,상품명,경로,담당기사이름,등록시간\r\n";
 result.forEach(o=>{
-const a=[o.id,o.productName,o.route,o.driverName,o.regTime,o.deliveryTime].map(v=>`"${String(v||"").replace(/"/g,'""')}"`);
+const a=[o.id,o.productName,o.route,o.driverName,o.regTime].map(v=>`"${String(v||"").replace(/"/g,'""')}"`);
 csv+=a.join(",")+"\r\n";
 });
 const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"})),link=document.createElement("a");
